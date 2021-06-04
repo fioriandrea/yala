@@ -3,6 +3,7 @@
 
 enum token_type {
         TOKEN_AND,
+        TOKEN_ASSIGN,
         TOKEN_BANG,
         TOKEN_BEGIN,
         TOKEN_BREAK,
@@ -31,6 +32,7 @@ enum token_type {
         TOKEN_LSQUARE,
         TOKEN_MINUS,
         TOKEN_NEQ,
+        TOKEN_OF,
         TOKEN_OR,
         TOKEN_OUT,
         TOKEN_PLUS,
@@ -55,6 +57,7 @@ enum token_type {
 struct token {
         enum token_type type;
         int line;
+        int linepos;
         char *start;
         int length;
 };
@@ -64,6 +67,7 @@ struct lexer {
         int programlength;
         char *current;
         int line;
+        int linepos;
 };
 
 void init_lexer(struct lexer *lexer, char *program, int programlength);
