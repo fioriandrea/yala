@@ -2,26 +2,17 @@
 #include <stdlib.h>
 
 #include "util.h"
+#include "frontend/frontend.h"
 
-int
-main(int argc, char **argv)
+char *load_program(char *progname, char *fname, int *proglen)
 {
-        char *progname;
-        char *fname;
         FILE *fp;
         size_t fsize;
         char *programtext;
 
-        progname = *argv;
-        if (argc == 1) {
-                fprintf(stderr ,"usage: %s [OPTIONS] FILE\n", progname);
-                exit(1);
-        }
-
-        fname = argv[1];
         fp = fopen(fname, "r");
         if (fp == NULL) {
-                varperror("cannot open file '%s'", fname);
+                varperror("%s: cannot open file '%s'", progname, fname);
                 exit(1);
         }
         fseek(fp, 0, SEEK_END);
@@ -29,16 +20,42 @@ main(int argc, char **argv)
         fseek(fp, 0, SEEK_SET);
         programtext = malloc(fsize + 1);
         if (programtext == NULL) {
-                varperror("cannot allocate enough memory for file '%s'", fname);
+                varperror("%s: cannot allocate enough memory for file '%s'", progname, fname);
                 exit(1);
         }
         if (fread(programtext, 1, fsize, fp) != fsize) {
-                varperror("cannot read whole file '%s'", fname);
+                varperror("%s: cannot read whole file '%s'", progname, fname);
                 exit(1);
         }
         fclose(fp);
         programtext[fsize + 1] = '\0';
-        printf("%s\n", programtext);
+        *proglen = fsize;
+        return programtext;
+}
+
+int
+main(int argc, char **argv)
+{
+        char *progname;
+        char *programtext;
+        int proglen;
+        struct lexer lexer;
+        struct token token;
+
+        progname = *argv;
+        if (argc < 2) {
+                fprintf(stderr ,"usage: %s [OPTIONS] FILE\n", progname);
+                exit(1);
+        }
+        programtext = load_program(progname, argv[1], &proglen);
+
+        init_lexer(&lexer, programtext, proglen);
+        for (;;) {
+                token = next_token(&lexer);
+                if (token.type == TOKEN_EOF || token.type == TOKEN_ERROR) {
+                        break;
+                }
+        }
         free(programtext);
         return 0;
 }
