@@ -4,7 +4,8 @@
 #include "util.h"
 #include "frontend/frontend.h"
 
-char *load_program(char *progname, char *fname, int *proglen)
+char *
+load_program(char *progname, char *fname, int *proglen)
 {
         FILE *fp;
         size_t fsize;
