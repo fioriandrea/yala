@@ -28,8 +28,6 @@ set_token(struct token *token, struct lexer *lexer, enum token_type type, int le
         token->length = length;
         token->linepos = lexer->linepos;
         token->line = lexer->line;
-        //lexer->current += length;
-        //lexer->linepos += length;
 }
 
 static void
@@ -53,7 +51,7 @@ set_eof_token(struct token *token, struct lexer *lexer)
 }
 
 static void
-set_string_token(struct token *token, struct lexer *lexer)
+set_stringlit_token(struct token *token, struct lexer *lexer)
 {
         struct lexer oldlexer;
 
@@ -69,19 +67,19 @@ set_string_token(struct token *token, struct lexer *lexer)
         if (*lexer->current != '"') {
                 set_error_token(token, &oldlexer, "unterminated string");
         } else {
-                set_token(token, &oldlexer, TOKEN_STRING, lexer->current - oldlexer.current);
+                set_token(token, &oldlexer, TOKEN_STRINGLIT, lexer->current - oldlexer.current);
                 advance(lexer, 1);
         }
 }
 
 static void
-set_int_token(struct token *token, struct lexer *lexer)
+set_integerlit_token(struct token *token, struct lexer *lexer)
 {
         struct lexer oldlexer = *lexer;
 
         while (isdigit(*lexer->current))
                 advance(lexer, 1);
-        set_token(token, &oldlexer, TOKEN_INT, lexer->current - oldlexer.current);
+        set_token(token, &oldlexer, TOKEN_INTEGERLIT, lexer->current - oldlexer.current);
 }
 
 static void
@@ -139,6 +137,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
         static struct _keyword keywords[] = {
                 {"and", 3, TOKEN_AND},
                 {"begin", 5, TOKEN_BEGIN},
+                {"boolean", 7, TOKEN_BOOLEAN},
                 {"break", 5, TOKEN_BREAK},
                 {"do", 1, TOKEN_DO},
                 {"else", 4, TOKEN_ELSE},
@@ -150,6 +149,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                 {"function", 8, TOKEN_FUNCTION},
                 {"if", 2, TOKEN_IF},
                 {"inout", 5, TOKEN_INOUT},
+                {"integer", 7, TOKEN_INTEGER},
                 {"of", 2, TOKEN_OF},
                 {"or", 2, TOKEN_OR},
                 {"out", TOKEN_OUT},
@@ -157,9 +157,11 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                 {"program", 7, TOKEN_PROGRAM},
                 {"read", 4, TOKEN_READ},
                 {"repeat", 6, TOKEN_REPEAT},
-                {"true", 4, TOKEN_TRUE},
+                {"string", 6, TOKEN_STRING},
                 {"then", 4, TOKEN_THEN},
+                {"true", 4, TOKEN_TRUE},
                 {"until", 5, TOKEN_UNTIL},
+                {"vector", 6, TOKEN_VECTOR},
                 {"while", 5, TOKEN_WHILE},
                 {"write", 5, TOKEN_WRITE},
                 {"writeln", 7, TOKEN_WRITELN},
@@ -184,6 +186,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                         return;
                 }
         }
+        /* or else, set token as a generic id */
         set_token(token, &oldlexer, TOKEN_ID, lexer->current - oldlexer.current);
 }
 
@@ -212,10 +215,10 @@ next_token(struct lexer *lexer)
                         }
                         advance(lexer, 1);
                 } else if (*lexer->current == '"') {
-                        set_string_token(&token, lexer);
+                        set_stringlit_token(&token, lexer);
                         break;
                 } else if (isdigit(*lexer->current)) {
-                        set_int_token(&token, lexer);
+                        set_integerlit_token(&token, lexer);
                         break;
                 } else if (isalpha(*lexer->current)) {
                         set_identifier_token(&token, lexer);
