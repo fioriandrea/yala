@@ -11,6 +11,7 @@ enum token_type {
         TOKEN_COLON,
         TOKEN_COMMA,
         TOKEN_DO,
+        TOKEN_DOT,
         TOKEN_ELSE,
         TOKEN_ELSIF,
         TOKEN_END,

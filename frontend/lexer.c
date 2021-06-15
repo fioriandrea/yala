@@ -110,6 +110,7 @@ set_operator_token(struct token *token, struct lexer *lexer)
                 {";", 1, TOKEN_SEMICOLON},
                 {"/", 1, TOKEN_SLASH},
                 {"*", 1, TOKEN_STAR},
+                {".", 1, TOKEN_DOT},
                 {NULL, 0, 0},
         };
 
