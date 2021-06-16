@@ -41,7 +41,6 @@ main(int argc, char **argv)
         char *programtext;
         int proglen;
         struct lexer lexer;
-        struct token token;
 
         progname = *argv;
         if (argc < 2) {
@@ -51,12 +50,7 @@ main(int argc, char **argv)
         programtext = load_program(progname, argv[1], &proglen);
 
         init_lexer(&lexer, programtext, proglen);
-        for (;;) {
-                token = next_token(&lexer);
-                if (token.type == TOKEN_EOF || token.type == TOKEN_ERROR) {
-                        break;
-                }
-        }
+        parse(&lexer);
         free(programtext);
         return 0;
 }

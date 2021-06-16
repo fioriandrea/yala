@@ -45,8 +45,8 @@ set_eof_token(struct token *token, struct lexer *lexer)
 {
         token->type = TOKEN_EOF;
         token->line = lexer->line;
-        token->start = lexer->current;
-        token->length = 0;
+        token->start = "EOF";
+        token->length = 3;
         token->linepos = lexer->linepos;
 }
 
@@ -116,7 +116,7 @@ set_operator_token(struct token *token, struct lexer *lexer)
 
         struct _keyoperator *ko;
         for (ko = operators; ko->name != NULL; ko++) {
-                int remaining = lexer->programlength - (lexer->current - lexer->program + 1);
+                int remaining = lexer->programlength - (lexer->current - lexer->program);
                 if (remaining >= ko->length && memcmp(ko->name, lexer->current, ko->length) == 0) {
                         set_token(token, lexer, ko->type, ko->length);
                         advance(lexer, ko->length);
@@ -230,4 +230,67 @@ next_token(struct lexer *lexer)
                 }
         }
         return token;
+}
+
+char *
+tokenstring(enum token_type type)
+{
+        switch (type) {
+        case TOKEN_AND: return "TOKEN_AND";
+        case TOKEN_ASSIGN: return "TOKEN_ASSIGN";
+        case TOKEN_BANG: return "TOKEN_BANG";
+        case TOKEN_BEGIN: return "TOKEN_BEGIN";
+        case TOKEN_BOOLEAN: return "TOKEN_BOOLEAN";
+        case TOKEN_BREAK: return "TOKEN_BREAK";
+        case TOKEN_COLON: return "TOKEN_COLON";
+        case TOKEN_COMMA: return "TOKEN_COMMA";
+        case TOKEN_DO: return "TOKEN_DO";
+        case TOKEN_DOT: return "TOKEN_DOT";
+        case TOKEN_ELSE: return "TOKEN_ELSE";
+        case TOKEN_ELSIF: return "TOKEN_ELSIF";
+        case TOKEN_END: return "TOKEN_END";
+        case TOKEN_EOF: return "TOKEN_EOF";
+        case TOKEN_EQ: return "TOKEN_EQ";
+        case TOKEN_ERROR: return "TOKEN_ERROR";
+        case TOKEN_EXIT: return "TOKEN_EXIT";
+        case TOKEN_FALSE: return "TOKEN_FALSE";
+        case TOKEN_FOR: return "TOKEN_FOR";
+        case TOKEN_FUNCTION: return "TOKEN_FUNCTION";
+        case TOKEN_GREATER: return "TOKEN_GREATER";
+        case TOKEN_GREATEREQ: return "TOKEN_GREATEREQ";
+        case TOKEN_ID: return "TOKEN_ID";
+        case TOKEN_IF: return "TOKEN_IF";
+        case TOKEN_INOUT: return "TOKEN_INOUT";
+        case TOKEN_INTEGER: return "TOKEN_INTEGER";
+        case TOKEN_INTEGERLIT: return "TOKEN_INTEGERLIT";
+        case TOKEN_LESS: return "TOKEN_LESS";
+        case TOKEN_LESSEQ: return "TOKEN_LESSEQ";
+        case TOKEN_LPAREN: return "TOKEN_LPAREN";
+        case TOKEN_LSQUARE: return "TOKEN_LSQUARE";
+        case TOKEN_MINUS: return "TOKEN_MINUS";
+        case TOKEN_NEQ: return "TOKEN_NEQ";
+        case TOKEN_OF: return "TOKEN_OF";
+        case TOKEN_OR: return "TOKEN_OR";
+        case TOKEN_OUT: return "TOKEN_OUT";
+        case TOKEN_PLUS: return "TOKEN_PLUS";
+        case TOKEN_PROCEDURE: return "TOKEN_PROCEDURE";
+        case TOKEN_PROGRAM: return "TOKEN_PROGRAM";
+        case TOKEN_READ: return "TOKEN_READ";
+        case TOKEN_REPEAT: return "TOKEN_REPEAT";
+        case TOKEN_RPAREN: return "TOKEN_RPAREN";
+        case TOKEN_RSQUARE: return "TOKEN_RSQUARE";
+        case TOKEN_SEMICOLON: return "TOKEN_SEMICOLON";
+        case TOKEN_SLASH: return "TOKEN_SLASH";
+        case TOKEN_STAR: return "TOKEN_STAR";
+        case TOKEN_STRING: return "TOKEN_STRING";
+        case TOKEN_STRINGLIT: return "TOKEN_STRINGLIT";
+        case TOKEN_THEN: return "TOKEN_THEN";
+        case TOKEN_TRUE: return "TOKEN_TRUE";
+        case TOKEN_UNTIL: return "TOKEN_UNTIL";
+        case TOKEN_VECTOR: return "TOKEN_VECTOR";
+        case TOKEN_WHILE: return "TOKEN_WHILE";
+        case TOKEN_WRITE: return "TOKEN_WRITE";
+        case TOKEN_WRITELN: return "TOKEN_WRITELN";
+        default: return "unrecognized token";
+        }
 }

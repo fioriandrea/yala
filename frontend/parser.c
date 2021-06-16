@@ -1,0 +1,434 @@
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+#include "frontend.h"
+
+struct parser {
+        struct token previous;
+        struct token current;
+        struct lexer *lexer;
+        int panic;
+        int error_detected;
+};
+
+static struct tree_node *new_tree_node(enum node_type type);
+static struct tree_node *new_binary_node(enum node_type type, struct tree_node *left, struct tree_node *right);
+static void parse_error(struct parser *ps, struct token tok, char *fmt, ...);
+static void error_at_current(struct parser *ps, char *msg);
+static void error_at_previous(struct parser *ps, char *msg);
+static enum node_type token_to_bin_node_type(struct token tok);
+static void advance(struct parser *ps);
+static int check(struct parser *ps, enum token_type type);
+static int eat(struct parser *ps, enum token_type type);
+static int eat_error(struct parser *ps, enum token_type type);
+static void synchronize(struct parser *ps);
+static char *copystrtoken(struct token tok);
+static struct tree_node *expr(struct parser *ps);
+static struct tree_node *boolean_expr(struct parser *ps);
+static struct tree_node *comp_expr(struct parser *ps);
+static struct tree_node *add_expr(struct parser *ps);
+static struct tree_node *mul_expr(struct parser *ps);
+static struct tree_node *term(struct parser *ps);
+static struct tree_node *unary_expr(struct parser *ps);
+static struct tree_node *grouping_expr(struct parser *ps);
+static struct tree_node *integer_const(struct parser *ps);
+static struct tree_node *string_const(struct parser *ps);
+static struct tree_node *boolean_const(struct parser *ps);
+static struct tree_node *conditional_expr(struct parser *ps);
+static struct tree_node *elsif_expr_list(struct parser *ps);
+static struct tree_node *dispatch_id_expr(struct parser *ps);
+static struct tree_node *lhs(struct parser *ps);
+static struct tree_node *expr_list(struct parser *ps);
+
+struct tree_node *
+parse(struct lexer *lexer)
+{
+        struct parser parser;
+        parser.lexer = lexer;
+        parser.current = next_token(lexer);
+        parser.panic = 0;
+        parser.error_detected = 0;
+        struct tree_node *res = expr(&parser);
+        if (parser.error_detected)
+                return NULL;
+        return res;
+}
+
+struct tree_node *
+expr(struct parser *ps)
+{
+        return boolean_expr(ps);
+}
+
+struct tree_node *
+boolean_expr(struct parser *ps)
+{
+        struct tree_node *left = comp_expr(ps);
+        while (eat(ps, TOKEN_AND) || eat(ps, TOKEN_OR)) {
+                enum node_type type = token_to_bin_node_type(ps->previous);
+                struct tree_node *right = comp_expr(ps);
+                left = new_binary_node(type, left, right);
+        }
+        return left;
+}
+
+struct tree_node *
+comp_expr(struct parser *ps)
+{
+        struct tree_node *left = add_expr(ps);
+        if (eat(ps, TOKEN_LESS) ||
+                eat(ps, TOKEN_LESS) ||
+                eat(ps, TOKEN_LESSEQ) || 
+                eat(ps, TOKEN_GREATER) || 
+                eat(ps, TOKEN_GREATEREQ) ||
+                eat(ps, TOKEN_EQ) ||
+                eat(ps, TOKEN_NEQ)
+        ) {
+                        enum node_type type = token_to_bin_node_type(ps->previous);
+                        struct tree_node *right = add_expr(ps);
+                        left = new_binary_node(type, left, right);
+                }
+                return left;
+}
+
+static struct tree_node *
+add_expr(struct parser *ps)
+{
+        struct tree_node *left = mul_expr(ps);
+        while (eat(ps, TOKEN_PLUS) || eat(ps, TOKEN_MINUS)) {
+                enum node_type type = token_to_bin_node_type(ps->previous);
+                struct tree_node *right = mul_expr(ps);
+                left = new_binary_node(type, left, right);
+        }
+        return left;
+}
+
+static struct tree_node *
+mul_expr(struct parser *ps)
+{
+        struct tree_node *left = term(ps);
+        while (eat(ps, TOKEN_STAR) || eat(ps, TOKEN_SLASH)) {
+                enum node_type type = token_to_bin_node_type(ps->previous);
+                struct tree_node *right = term(ps);
+                left = new_binary_node(type, left, right);
+        }
+        return left;
+}
+
+static struct tree_node *
+term(struct parser *ps)
+{
+        switch (ps->current.type) {
+        case TOKEN_MINUS:
+        case TOKEN_BANG:
+        return unary_expr(ps);
+        case TOKEN_LPAREN:
+        return grouping_expr(ps);
+        case TOKEN_INTEGERLIT:
+        return integer_const(ps);
+        case TOKEN_STRINGLIT:
+        return string_const(ps);
+        case TOKEN_TRUE:
+        case TOKEN_FALSE:
+        return boolean_const(ps);
+        case TOKEN_IF:
+        return conditional_expr(ps);
+        case TOKEN_ID:
+        return dispatch_id_expr(ps);
+        default:
+        error_at_current(ps, "unexpected token");
+        return NULL;
+        }
+}
+
+static struct tree_node *
+unary_expr(struct parser *ps)
+{
+        enum node_type type = ps->current.type == TOKEN_BANG ? NODE_NOT_EXPR : NODE_NEG_EXPR;
+        advance(ps);
+        struct tree_node *child = term(ps);
+        struct tree_node *res = new_tree_node(type);
+        res->child = child;
+        return res;
+}
+
+static struct tree_node *
+grouping_expr(struct parser *ps)
+{
+        advance(ps);
+        struct tree_node *res = expr(ps);
+        eat_error(ps, TOKEN_RPAREN);
+        return res;
+}
+
+static struct tree_node *
+integer_const(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node(NODE_INTGER_CONST);
+
+        /* convert string to integer */
+        int num = 0;
+        char *str = ps->current.start;
+        while (str - ps->current.start < ps->current.length) {
+                num = num * 10 + (*str - '0');
+                str++;
+        }
+
+        res->value.ival = num;
+        advance(ps);
+        return res;
+}
+
+static struct tree_node *
+string_const(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node(NODE_STRING_CONST);
+        res->value.sval = copystrtoken(ps->current);
+        advance(ps);
+        return res;
+}
+
+static struct tree_node *
+boolean_const(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node(NODE_BOOLEAN_CONST);
+        res->value.bval = ps->current.type == TOKEN_TRUE;
+        return res;
+}
+
+static struct tree_node *
+conditional_expr(struct parser *ps)
+{
+        advance(ps);
+        struct tree_node *res = new_tree_node(NODE_COND_EXPR);
+        struct tree_node **child = &res->child;
+        *child = expr(ps);
+        child = &(*child)->next;
+        eat_error(ps, TOKEN_THEN);
+        *child = expr(ps);
+        child = &(*child)->next;
+        if (check(ps, TOKEN_ELSIF)) {
+                *child = elsif_expr_list(ps);
+                child = &(*child)->next;
+        }
+        eat_error(ps, TOKEN_ELSE);
+        *child = expr(ps);
+        child = &(*child)->next;
+        eat_error(ps, TOKEN_END);
+        return res;
+}
+
+struct tree_node *
+elsif_expr_list(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node(NODE_ELSIF_EXPR_LIST);
+        struct tree_node **child = &res->child;
+        while (eat(ps, TOKEN_ELSIF)) {
+                *child = expr(ps);
+                child = &(*child)->next;
+                eat_error(ps, TOKEN_THEN);
+                *child = expr(ps);
+                child = &(*child)->next;
+        }
+        return res;
+}
+
+static struct tree_node *
+dispatch_id_expr(struct parser *ps)
+{
+        struct tree_node *res = lhs(ps);
+        if (res->type == NODE_ID && eat(ps, TOKEN_LPAREN)) {
+                struct tree_node *args = expr_list(ps);
+                eat_error(ps, TOKEN_RPAREN);
+                struct tree_node *tmp = new_tree_node(NODE_FUNCTION_CALL);
+                tmp->left = res;
+                tmp->right = args;
+                res = tmp;
+        }
+        return res;
+}
+
+static struct tree_node *
+lhs(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node(NODE_ID);
+        res->value.sval = copystrtoken(ps->current);
+        advance(ps);
+        while (eat(ps, TOKEN_LSQUARE)) {
+                struct tree_node *index = expr(ps);
+                eat_error(ps, TOKEN_RSQUARE);
+                struct tree_node *tmp = new_tree_node(NODE_INDEXING);
+                tmp->left = res;
+                tmp->right = index;
+                res = tmp;
+        }
+        return res;
+}
+
+static struct tree_node *
+expr_list(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node(NODE_EXPR_LIST);
+        res->child = expr(ps);
+        struct tree_node **child = &res->child;
+        child = &(*child)->next;
+        while (eat(ps, TOKEN_COMMA)) {
+                *child = expr(ps);
+                child = &(*child)->next;
+        }
+        return res;
+}
+
+static int
+eat(struct parser *ps, enum token_type type)
+{
+        if (check(ps, type)) {
+                advance(ps);
+                return 1;
+        }
+        return 0;
+}
+
+static int
+eat_error(struct parser *ps, enum token_type type)
+{
+        if (!eat(ps, type)) {
+                parse_error(
+                        ps,
+                        ps->current,
+                        "expected %s, got %.*s",
+                        tokenstring(type),
+                        ps->current.length,
+                        ps->current.start
+                );
+                return 0;
+        }
+        return 1;
+}
+
+static int
+check(struct parser *ps, enum token_type type)
+{
+        return ps->current.type == type;
+}
+
+static void
+advance(struct parser *ps)
+{
+        ps->previous = ps->current;
+        for (;;) {
+                ps->current = next_token(ps->lexer);
+                if (ps->current.type != TOKEN_ERROR)
+                        break;
+                error_at_current(ps, "");
+        }
+}
+
+static void
+synchronize(struct parser *ps)
+{
+        /* TODO: Synchronize on statement boundaries */
+        ps->panic = 0;
+        while (ps->current.type != TOKEN_EOF) {
+                if (ps->previous.type == TOKEN_SEMICOLON)
+                        break;
+                advance(ps);
+        }
+}
+
+static struct tree_node *
+new_tree_node(enum node_type type)
+{
+        struct tree_node *node = malloc(sizeof(struct tree_node));
+        node->type = type;
+        node->left =  NULL;
+        node->right =  NULL;
+        node->child =  NULL;
+        node->next = NULL;
+        return node;
+}
+
+static struct tree_node *
+new_binary_node(enum node_type type, struct tree_node *left, struct tree_node *right)
+{
+        struct tree_node *node = new_tree_node(type);
+        node->left = left;
+        node->right = right;
+        return node;
+}
+
+static void
+parse_error(struct parser *ps, struct token tok, char *fmt, ...)
+{
+        if (ps->panic)
+                return;
+        va_list args;
+        va_start(args, fmt);
+        ps->error_detected = 1;
+        ps->panic = 1;
+        fprintf(stderr, "error ");
+        if (tok.type == TOKEN_EOF) {
+                fprintf(stderr, "[at end]: ");
+        } else {
+                fprintf(stderr, "[at %d:%d]: ", tok.line, tok.linepos);
+                if (tok.type != TOKEN_ERROR) {
+                        fprintf(stderr, "at '%.*s', ", tok.length, tok.start);
+                } else {
+                        fprintf(stderr, "lexer error: %.*s", tok.length, tok.start);
+                }
+        }
+        vfprintf(stderr, fmt, args);
+        fprintf(stderr, "\n");
+        va_end(args);
+}
+
+
+static void
+error_at_current(struct parser *ps, char *msg)
+{
+        parse_error(ps, ps->current, msg);
+}
+
+static void
+error_at_previous(struct parser *ps, char *msg)
+{
+        parse_error(ps, ps->previous, msg);
+}
+
+static enum
+node_type token_to_bin_node_type(struct token tok)
+{
+        switch (tok.type) {
+        case TOKEN_NEQ: return NODE_NEQ_EXPR;
+        case TOKEN_EQ: return NODE_EQ_EXPR;
+        case TOKEN_LESS: return NODE_LESS_EXPR;
+        case TOKEN_LESSEQ: return NODE_LESSEQ_EXPR;
+        case TOKEN_GREATER: return NODE_GREATER_EXPR;
+        case TOKEN_GREATEREQ: return NODE_GREATEREQ_EXPR;
+        case TOKEN_PLUS: return NODE_PLUS_EXPR;
+        case TOKEN_MINUS: return NODE_MINUS_EXPR;
+        case TOKEN_BANG: return NODE_NOT_EXPR;
+        case TOKEN_OR: return NODE_OR_EXPR;
+        case TOKEN_AND: return NODE_AND_EXPR;
+        case TOKEN_STAR: return NODE_TIMES_EXPR;
+        case TOKEN_SLASH: return NODE_DIVIDE_EXPR;
+        default: return -1;
+        }
+}
+
+static char *
+copystrtoken(struct token tok)
+{
+        char *str = malloc(sizeof(char) * (tok.length + 1));
+        strncpy(str, tok.start, tok.length);
+        str[tok.length] = '\0';
+        return str;
+}
+
+void
+treeprint(struct tree_node *root)
+{
+        /* TODO */
+}

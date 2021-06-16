@@ -77,5 +77,82 @@ struct lexer {
 
 void init_lexer(struct lexer *lexer, char *program, int programlength);
 struct token next_token(struct lexer *lexer);
+char *tokenstring(enum token_type type);
+
+union atomic {
+        int ival;
+        char *sval;
+        int bval;
+};
+
+enum node_type {
+        NODE_AND_EXPR,
+        NODE_ASSIGN_STAT,
+        NODE_BOOLEAN_CONST,
+        NODE_BOOLEAN_TYPE,
+        NODE_BREAK_STAT,
+        NODE_COND_EXPR,
+        NODE_DIVIDE_EXPR,
+        NODE_NEG_EXPR,
+        NODE_EQ_EXPR,
+        NODE_EXIT_STAT,
+        NODE_EXPR_BODY,
+        NODE_EXPR_LIST,
+        NODE_FORMAL_DECL,
+        NODE_FOR_STAT,
+        NODE_FUNCTION_DECL,
+        NODE_FUNCTION_CALL,
+        NODE_GREATEREQ_EXPR,
+        NODE_GREATER_EXPR,
+        NODE_ID_LIST,
+        NODE_ID,
+        NODE_IF_STAT,
+        NODE_INDEXING,
+        NODE_INTEGER_TYPE,
+        NODE_INTGER_CONST,
+        NODE_LESSEQ_EXPR,
+        NODE_LHS,
+        NODE_LESS_EXPR,
+        NODE_MINUS_EXPR,
+        NODE_MODE_INOUT,
+        NODE_MODE_IN,
+        NODE_MODE_OUT,
+        NODE_MODULE_DECL_LIST,
+        NODE_NEQ_EXPR,
+        NODE_NOT_EXPR,
+        NODE_ELSIF_EXPR_LIST,
+        NODE_OR_EXPR,
+        NODE_PLUS_EXPR,
+        NODE_PROCEDURE_DECL,
+        NODE_PROC_CALL_NODE,
+        NODE_PROGRAM,
+        NODE_READ_STAT,
+        NODE_REPEAT_STAT,
+        NODE_STAT_BODY,
+        NODE_STAT_LIST,
+        NODE_STRING_CONST,
+        NODE_STRING_TYPE,
+        NODE_TIMES_EXPR,
+        NODE_UNARY_MINUS_EXPR,
+        NODE_VAR_DECL_LIST,
+        NODE_VAR_DECL,
+        NODE_VECTOR_CONST,
+        NODE_VECTOR_TYPE,
+        NODE_WHILE_STAT,
+        NODE_WRITELN_STAT,
+        NODE_WRITE_STAT,
+};
+
+struct tree_node {
+        enum node_type type;
+        union atomic value;
+        struct tree_node *next;
+        struct tree_node *left;
+        struct tree_node *right;
+        struct tree_node *child;
+};
+
+void treeprint(struct tree_node *root);
+struct tree_node *parse(struct lexer *lexer);
 
 #endif
