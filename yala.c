@@ -40,7 +40,6 @@ main(int argc, char **argv)
         char *progname;
         char *programtext;
         int proglen;
-        struct lexer lexer;
 
         progname = *argv;
         if (argc < 2) {
@@ -49,8 +48,7 @@ main(int argc, char **argv)
         }
         programtext = load_program(progname, argv[1], &proglen);
 
-        init_lexer(&lexer, programtext, proglen);
-        parse(&lexer);
+        parse(programtext, proglen);
         free(programtext);
         return 0;
 }

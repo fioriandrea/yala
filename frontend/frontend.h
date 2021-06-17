@@ -77,7 +77,7 @@ struct lexer {
 
 void init_lexer(struct lexer *lexer, char *program, int programlength);
 struct token next_token(struct lexer *lexer);
-char *tokenstring(enum token_type type);
+char *tokentypestring(enum token_type type);
 
 union atomic {
         int ival;
@@ -153,6 +153,8 @@ struct tree_node {
 };
 
 void treeprint(struct tree_node *root);
-struct tree_node *parse(struct lexer *lexer);
+struct tree_node *parse(char *program, int programlen);
+char *nodetypestring(enum node_type type);
+char *treenodestring(struct tree_node *node);
 
 #endif

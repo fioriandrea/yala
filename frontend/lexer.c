@@ -233,7 +233,7 @@ next_token(struct lexer *lexer)
 }
 
 char *
-tokenstring(enum token_type type)
+tokentypestring(enum token_type type)
 {
         switch (type) {
         case TOKEN_AND: return "TOKEN_AND";
