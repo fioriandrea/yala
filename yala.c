@@ -48,7 +48,7 @@ main(int argc, char **argv)
         }
         programtext = load_program(progname, argv[1], &proglen);
 
-        parse(programtext, proglen);
+        treeprint(parse(programtext, proglen));
         free(programtext);
         return 0;
 }

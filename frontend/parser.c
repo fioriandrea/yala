@@ -57,10 +57,7 @@ parse(char *program, int programlen)
         parser.panic = 0;
         parser.error_detected = 0;
         struct tree_node *res = expr(&parser);
-        if (parser.error_detected)
-                return NULL;
-        treeprint(res);
-        return res;
+        return parser.error_detected ? NULL : res;
 }
 
 struct tree_node *
