@@ -592,5 +592,17 @@ treeprint(struct tree_node *root)
 void
 tree_node_free(struct tree_node *root)
 {
-        /* TODO (handle string freeing) */
+        if (root == NULL)
+                return;
+        if (root->type == NODE_STRING_CONST || root->type == NODE_ID) {
+                free(root->value.sval);
+        }
+        tree_node_free(root->left);
+        tree_node_free(root->right);
+        struct tree_node *child = root->child;
+        while (child != NULL) {
+                struct tree_node *next = child->next;
+                tree_node_free(child);
+                child = next;
+        }
 }

@@ -52,6 +52,7 @@ main(int argc, char **argv)
         char *progname;
         char *programtext;
         int proglen;
+        struct tree_node *root;
 
         progname = *argv;
         if (argc < 2) {
@@ -60,7 +61,9 @@ main(int argc, char **argv)
         }
         programtext = load_program(progname, argv[1], &proglen);
 
-        treeprint(parse(programtext, proglen));
+        root = parse(programtext, proglen);
+        treeprint(root);
+        tree_node_free(root);
         free(programtext);
         return 0;
 }
