@@ -1,5 +1,9 @@
-#ifndef fetypes_h
-#define fetypes_h
+#ifndef frontend_h
+#define frontend_h
+
+#include <stdint.h>
+
+#include "../datastructs.h"
 
 enum token_type {
         TOKEN_AND,
@@ -154,7 +158,27 @@ struct tree_node {
 
 void treeprint(struct tree_node *root);
 struct tree_node *parse(char *program, int programlen);
+void tree_node_free(struct tree_node *root);
 char *nodetypestring(enum node_type type);
 char *treenodestring(struct tree_node *node);
+
+enum opcode {
+        OP_LOCI, /* constants */
+        OP_LOCS,
+
+        OP_ADDI, /* integer arithmetic */
+        OP_SUBI,
+        OP_MULI,
+        OP_DIVI,
+
+        OP_IGRT, /* comparison */
+        OP_ILET,
+        OP_NEQUA,
+        OP_EQUA,
+
+        OP_AND, /* boolean logic */
+        OP_OR,
+        OP_NOT,
+};
 
 #endif

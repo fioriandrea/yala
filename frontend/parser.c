@@ -57,7 +57,11 @@ parse(char *program, int programlen)
         parser.panic = 0;
         parser.error_detected = 0;
         struct tree_node *res = expr(&parser);
-        return parser.error_detected ? NULL : res;
+        if (parser.error_detected) {
+                tree_node_free(res);
+                return NULL;
+        }
+        return res;
 }
 
 struct tree_node *
@@ -583,4 +587,10 @@ void
 treeprint(struct tree_node *root)
 {
         treeprinthelper(root, 0);
+}
+
+void
+tree_node_free(struct tree_node *root)
+{
+        /* TODO (handle string freeing) */
 }
