@@ -594,9 +594,8 @@ tree_node_free(struct tree_node *root)
 {
         if (root == NULL)
                 return;
-        if (root->type == NODE_STRING_CONST || root->type == NODE_ID) {
+        if (root->type == NODE_STRING_CONST || root->type == NODE_ID)
                 free(root->value.sval);
-        }
         tree_node_free(root->left);
         tree_node_free(root->right);
         struct tree_node *child = root->child;
