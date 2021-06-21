@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "../datastructs.h"
+#include "../datastructs/datastructs.h"
 
 enum token_type {
         TOKEN_AND,
