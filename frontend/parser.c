@@ -132,21 +132,21 @@ term(struct parser *ps)
         switch (ps->current.type) {
         case TOKEN_MINUS:
         case TOKEN_BANG:
-        return unary_expr(ps);
+                return unary_expr(ps);
         case TOKEN_LPAREN:
-        return grouping_expr(ps);
+                return grouping_expr(ps);
         case TOKEN_INTEGERLIT:
         case TOKEN_STRINGLIT:
         case TOKEN_LSQUARE:
         case TOKEN_TRUE:
         case TOKEN_FALSE:
-        return const_expr(ps);
+                return const_expr(ps);
         case TOKEN_IF:
-        return conditional_expr(ps);
+                return conditional_expr(ps);
         case TOKEN_ID:
-        return dispatch_id_expr(ps);
+                return dispatch_id_expr(ps);
         default:
-        error_at_current(ps, "unexpected token");
+                error_at_current(ps, "unexpected token");
         return NULL;
         }
 }
@@ -167,17 +167,17 @@ const_expr(struct parser *ps)
 {
         switch (ps->current.type) {
         case TOKEN_INTEGERLIT:
-        return integer_const(ps);
+                return integer_const(ps);
         case TOKEN_STRINGLIT:
-        return string_const(ps);
+                return string_const(ps);
         case TOKEN_LSQUARE:
-        return vector_const(ps);
+                return vector_const(ps);
         case TOKEN_TRUE:
         case TOKEN_FALSE:
-        return boolean_const(ps);
+                return boolean_const(ps);
         default:
-        error_at_current(ps, "expected constant expression");
-        return NULL;
+                error_at_current(ps, "expected constant expression");
+                return NULL;
         }
 }
 
@@ -567,16 +567,16 @@ treeprinthelper(struct tree_node *root, int level)
         switch (root->type) {
         case NODE_ID:
         case NODE_STRING_CONST:
-        printf(" (%s)", root->value.sval);
-        break;
+                printf(" (%s)", root->value.sval);
+                break;
         case NODE_INTGER_CONST:
-        printf(" (%d)", root->value.ival);
-        break;
+                printf(" (%d)", root->value.ival);
+                break;
         case NODE_BOOLEAN_CONST:
-        printf(" (%s)", root->value.bval ? "true" : "false");
-        break;
+                printf(" (%s)", root->value.bval ? "true" : "false");
+                break;
         default:
-        break;
+                break;
         }
         printf("\n");
         /* right first for clarity in output for nested binary expressions */
