@@ -52,7 +52,7 @@ parse(char *program, int programlen)
 {
         struct parser parser;
         struct lexer lexer;
-        init_lexer(&lexer, program, programlen);
+        lexer_init(&lexer, program, programlen);
         parser.lexer = &lexer;
         parser.current = next_token(&lexer);
         parser.panic = 0;
@@ -541,8 +541,8 @@ nodetypestring(enum node_type type)
         case NODE_WHILE_STAT: return "NODE_WHILE_STAT";
         case NODE_WRITELN_STAT: return "NODE_WRITELN_STAT";
         case NODE_WRITE_STAT: return "NODE_WRITE_STAT";
-        default: return "unrecognized node type";
         }
+        return "unreachable return in nodetypestring";
 }
 
 static void

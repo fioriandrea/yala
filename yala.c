@@ -6,6 +6,8 @@
 
 #include "frontend/frontend.h"
 
+#include "semantics/semantics.h"
+
 void
 varperror(char *fmt, ...)
 {
@@ -53,6 +55,18 @@ main(int argc, char **argv)
         char *programtext;
         int proglen;
         struct tree_node *root;
+
+        {
+                struct bytecode code;
+                bytecode_init(&code);
+                struct lineinfo linfo;
+                struct value val;
+                linfo.line = linfo.linepos = 0;
+                bytecode_write_byte(&code, OP_LOCI, linfo);
+                bytecode_write_constant(&code, val, linfo);
+                bytecode_write_byte(&code, OP_ADDI, linfo);
+                disassemble(&code);
+        }
 
         progname = *argv;
         if (argc < 2) {

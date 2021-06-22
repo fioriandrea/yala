@@ -1,10 +1,6 @@
 #ifndef frontend_h
 #define frontend_h
 
-#include <stdint.h>
-
-#include "../datastructs/datastructs.h"
-
 enum token_type {
         TOKEN_AND,
         TOKEN_ASSIGN,
@@ -79,7 +75,7 @@ struct lexer {
         int linepos;
 };
 
-void init_lexer(struct lexer *lexer, char *program, int programlength);
+void lexer_init(struct lexer *lexer, char *program, int programlength);
 struct token next_token(struct lexer *lexer);
 char *tokentypestring(enum token_type type);
 
@@ -167,24 +163,5 @@ struct tree_node *parse(char *program, int programlen);
 void tree_node_free(struct tree_node *root);
 char *nodetypestring(enum node_type type);
 char *treenodestring(struct tree_node *node);
-
-enum opcode {
-        OP_LOCI, /* constants */
-        OP_LOCS,
-
-        OP_ADDI, /* integer arithmetic */
-        OP_SUBI,
-        OP_MULI,
-        OP_DIVI,
-
-        OP_IGRT, /* comparison */
-        OP_ILET,
-        OP_NEQUA,
-        OP_EQUA,
-
-        OP_AND, /* boolean logic */
-        OP_OR,
-        OP_NOT,
-};
 
 #endif

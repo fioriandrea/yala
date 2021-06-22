@@ -4,7 +4,7 @@
 #include "frontend.h"
 
 void
-init_lexer(struct lexer *lexer, char *program, int programlength)
+lexer_init(struct lexer *lexer, char *program, int programlength)
 {
         lexer->program = program;
         lexer->programlength = programlength;
@@ -291,6 +291,6 @@ tokentypestring(enum token_type type)
         case TOKEN_WHILE: return "TOKEN_WHILE";
         case TOKEN_WRITE: return "TOKEN_WRITE";
         case TOKEN_WRITELN: return "TOKEN_WRITELN";
-        default: return "unrecognized token";
         }
+        return "unreachable return in tokentypestring";
 }
