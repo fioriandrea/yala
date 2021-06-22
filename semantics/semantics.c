@@ -24,6 +24,37 @@ opcodestring(enum opcode code)
 }
 
 void
+print_value(struct value v)
+{
+        switch (v.type) {
+        case VAL_INTEGER:
+        printf("%d", v.as.integer);
+        break;
+        case VAL_BOOLEAN:
+        printf("%s", v.as.boolean ? "true" : "false");
+        break;
+        }
+}
+
+struct value
+value_from_c_int(int i)
+{
+        struct value v;
+        v.type = VAL_INTEGER;
+        v.as.integer = i;
+        return v;
+}
+
+struct value
+value_from_c_bool(int b)
+{
+        struct value v;
+        v.type = VAL_BOOLEAN;
+        v.as.boolean = b;
+        return v;
+}
+
+void
 bytecode_init(struct bytecode *code)
 {
         bytes_init(&code->code);
@@ -41,7 +72,7 @@ bytecode_write_byte(struct bytecode *code, uint8_t byte, struct lineinfo linfo)
 int
 bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo)
 {
-        int addr = valuelist_push(&code->constants, val);
+        int addr = valuelist_push(&code->constants, val) - 1;
         return bytecode_write_byte(code, addr, linfo);
 }
 
@@ -64,7 +95,7 @@ disassemble_constant(struct bytecode *code, int ip)
 {
         uint8_t constantaddr = bytes_at(&code->code, ip);
         struct value val = valuelist_at(&code->constants, constantaddr);
-        printf("TODO_CONSTANT");
+        print_value(val);
         disassemble_lineinfo(code, ip);
         return ip + 1;
 }

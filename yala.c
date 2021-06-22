@@ -60,7 +60,7 @@ main(int argc, char **argv)
                 struct bytecode code;
                 bytecode_init(&code);
                 struct lineinfo linfo;
-                struct value val;
+                struct value val = value_from_c_int(2);
                 linfo.line = linfo.linepos = 0;
                 bytecode_write_byte(&code, OP_LOCI, linfo);
                 bytecode_write_constant(&code, val, linfo);

@@ -27,9 +27,22 @@ enum opcode {
 
 char *opcodestring(enum opcode code);
 
-struct value {
-        /* TODO */
+enum value_type {
+        VAL_INTEGER,
+        VAL_BOOLEAN,
 };
+
+struct value {
+        enum value_type type;
+        union {
+                int integer;
+                int boolean;
+        } as;
+};
+
+void print_value(struct value v);
+struct value value_from_c_int(int i);
+struct value value_from_c_bool(int b);
 
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
