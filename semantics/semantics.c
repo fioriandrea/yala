@@ -19,6 +19,7 @@ opcodestring(enum opcode code)
         case OP_AND: return "OP_AND";
         case OP_OR: return "OP_OR";
         case OP_NOT: return "OP_NOT";
+        case OP_HALT: return "OP_HALT";
         }
         return "unreachable return in opcodestring";
 }
@@ -29,11 +30,12 @@ print_value(struct value v)
         switch (v.type) {
         case VAL_INTEGER:
         printf("%d", v.as.integer);
-        break;
+        return;
         case VAL_BOOLEAN:
         printf("%s", v.as.boolean ? "true" : "false");
-        break;
+        return;
         }
+        printf("unreachable value type");
 }
 
 struct value
@@ -74,6 +76,24 @@ bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo
 {
         int addr = valuelist_push(&code->constants, val) - 1;
         return bytecode_write_byte(code, addr, linfo);
+}
+
+uint8_t
+bytecode_byte_at(struct bytecode *code, int i)
+{
+        return bytes_at(&code->code, i);
+}
+
+struct lineinfo
+bytecode_lineinfo_at(struct bytecode *code, int i)
+{
+        return linelist_at(&code->lines, i);
+}
+
+struct value
+bytecode_constant_at(struct bytecode *code, uint8_t address)
+{
+        return valuelist_at(&code->constants, address);
 }
 
 void

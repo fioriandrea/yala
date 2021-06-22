@@ -23,6 +23,8 @@ enum opcode {
         OP_AND, /* boolean logic */
         OP_OR,
         OP_NOT,
+
+        OP_HALT,
 };
 
 char *opcodestring(enum opcode code);
@@ -59,7 +61,12 @@ struct bytecode {
 void bytecode_init(struct bytecode *code);
 int bytecode_write_byte(struct bytecode *code, uint8_t byte, struct lineinfo linfo);
 int bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo);
+uint8_t bytecode_byte_at(struct bytecode *code, int i);
+struct lineinfo bytecode_lineinfo_at(struct bytecode *code, int i);
+struct value bytecode_constant_at(struct bytecode *code, uint8_t address);
 void bytecode_free(struct bytecode *code);
 void disassemble(struct bytecode *code);
+
+struct bytecode *generate_bytecode(struct tree_node *parsetree);
 
 #endif
