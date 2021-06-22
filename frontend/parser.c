@@ -13,7 +13,8 @@ struct parser {
         int error_detected;
 };
 
-static struct tree_node *new_tree_node(enum node_type type);
+static struct tree_node *new_tree_node(enum node_type type, int line, int linepos);
+static struct tree_node *new_tree_node_at_current(struct parser *ps, enum node_type type);
 static struct tree_node *new_binary_node(enum node_type type, struct tree_node *left, struct tree_node *right);
 static void parse_error(struct parser *ps, struct token tok, char *fmt, ...);
 static void error_at_current(struct parser *ps, char *msg);
@@ -156,7 +157,7 @@ unary_expr(struct parser *ps)
         enum node_type type = ps->current.type == TOKEN_BANG ? NODE_NOT_EXPR : NODE_NEG_EXPR;
         advance(ps);
         struct tree_node *child = term(ps);
-        struct tree_node *res = new_tree_node(type);
+        struct tree_node *res = new_tree_node_at_current(ps, type);
         res->child = child;
         return res;
 }
@@ -183,7 +184,7 @@ const_expr(struct parser *ps)
 static struct tree_node *
 integer_const(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_INTGER_CONST);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_INTGER_CONST);
 
         /* convert string to integer */
         int num = 0;
@@ -201,7 +202,7 @@ integer_const(struct parser *ps)
 static struct tree_node *
 string_const(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_STRING_CONST);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_STRING_CONST);
         res->value.sval = copystrtoken(ps->current);
         advance(ps);
         return res;
@@ -210,7 +211,7 @@ string_const(struct parser *ps)
 static struct tree_node *
 vector_const(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_VECTOR_CONST);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_VECTOR_CONST);
         advance(ps);
         res->child = const_list(ps);
         eat_error(ps, TOKEN_RSQUARE);
@@ -233,7 +234,7 @@ const_list(struct parser *ps)
 static struct tree_node *
 boolean_const(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_BOOLEAN_CONST);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_BOOLEAN_CONST);
         res->value.bval = ps->current.type == TOKEN_TRUE;
         return res;
 }
@@ -250,8 +251,8 @@ grouping_expr(struct parser *ps)
 static struct tree_node *
 conditional_expr(struct parser *ps)
 {
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_COND_EXPR);
         advance(ps);
-        struct tree_node *res = new_tree_node(NODE_COND_EXPR);
         struct tree_node **child = &res->child;
         *child = expr(ps);
         child = &(*child)->next;
@@ -272,7 +273,7 @@ conditional_expr(struct parser *ps)
 static struct tree_node *
 elsif_expr_list(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_ELSIF_EXPR_LIST);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_ELSIF_EXPR_LIST);
         struct tree_node **child = &res->child;
         while (eat(ps, TOKEN_ELSIF)) {
                 *child = expr(ps);
@@ -291,7 +292,7 @@ dispatch_id_expr(struct parser *ps)
         if (res->type == NODE_ID && eat(ps, TOKEN_LPAREN)) {
                 struct tree_node *args = expr_list(ps);
                 eat_error(ps, TOKEN_RPAREN);
-                struct tree_node *tmp = new_tree_node(NODE_FUNCTION_CALL);
+                struct tree_node *tmp = new_tree_node_at_current(ps, NODE_FUNCTION_CALL);
                 tmp->left = res;
                 tmp->right = args;
                 res = tmp;
@@ -302,16 +303,13 @@ dispatch_id_expr(struct parser *ps)
 static struct tree_node *
 lhs(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_ID);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_ID);
         res->value.sval = copystrtoken(ps->current);
         advance(ps);
         while (eat(ps, TOKEN_LSQUARE)) {
                 struct tree_node *index = expr(ps);
                 eat_error(ps, TOKEN_RSQUARE);
-                struct tree_node *tmp = new_tree_node(NODE_INDEXING);
-                tmp->left = res;
-                tmp->right = index;
-                res = tmp;
+                res = new_binary_node(NODE_INDEXING, res, index);
         }
         return res;
 }
@@ -319,7 +317,7 @@ lhs(struct parser *ps)
 static struct tree_node *
 expr_list(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node(NODE_EXPR_LIST);
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_EXPR_LIST);
         res->child = expr(ps);
         struct tree_node **child = &res->child;
         child = &(*child)->next;
@@ -388,7 +386,7 @@ synchronize(struct parser *ps)
 }
 
 static struct tree_node *
-new_tree_node(enum node_type type)
+new_tree_node(enum node_type type, int line, int linepos)
 {
         struct tree_node *node = malloc(sizeof(struct tree_node));
         node->type = type;
@@ -396,13 +394,21 @@ new_tree_node(enum node_type type)
         node->right =  NULL;
         node->child =  NULL;
         node->next = NULL;
+        node->linfo.line = line;
+        node->linfo.linepos = linepos;
         return node;
+}
+
+static struct tree_node *
+new_tree_node_at_current(struct parser *ps, enum node_type type)
+{
+        return new_tree_node(type, ps->current.line, ps->current.linepos);
 }
 
 static struct tree_node *
 new_binary_node(enum node_type type, struct tree_node *left, struct tree_node *right)
 {
-        struct tree_node *node = new_tree_node(type);
+        struct tree_node *node = new_tree_node(type, left->linfo.line, left->linfo.linepos);
         node->left = left;
         node->right = right;
         return node;
@@ -557,7 +563,7 @@ treeprinthelper(struct tree_node *root, int level)
                 printf("%s%s%s ", tee, dash, dash);
         }
 
-        printf("%s", nodetypestring(root->type));
+        printf("%s (%d:%d)", nodetypestring(root->type), root->linfo.line, root->linfo.linepos);
         switch (root->type) {
         case NODE_ID:
         case NODE_STRING_CONST:

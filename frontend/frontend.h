@@ -147,9 +147,15 @@ enum node_type {
         NODE_WRITE_STAT,
 };
 
+struct lineinfo {
+        int line;
+        int linepos;
+};
+
 struct tree_node {
         enum node_type type;
         union atomic value;
+        struct lineinfo linfo;
         struct tree_node *next;
         struct tree_node *left;
         struct tree_node *right;
