@@ -7,6 +7,7 @@
 #include "frontend/frontend.h"
 
 #include "semantics/semantics.h"
+#include "vm/vm.h"
 
 void
 varperror(char *fmt, ...)
@@ -60,12 +61,17 @@ main(int argc, char **argv)
                 struct bytecode code;
                 bytecode_init(&code);
                 struct lineinfo linfo;
-                struct value val = value_from_c_int(2);
                 linfo.line = linfo.linepos = 0;
                 bytecode_write_byte(&code, OP_LOCI, linfo);
-                bytecode_write_constant(&code, val, linfo);
-                bytecode_write_byte(&code, OP_ADDI, linfo);
+                bytecode_write_constant(&code, value_from_c_int(2), linfo);
+                bytecode_write_byte(&code, OP_LOCI, linfo);
+                bytecode_write_constant(&code, value_from_c_int(4), linfo);
+                bytecode_write_byte(&code, OP_MULI, linfo);
+                bytecode_write_byte(&code, OP_HALT, linfo);
                 disassemble(&code);
+                struct vm vm;
+                vm_init(&vm, &code);
+                vm_run(&vm);
         }
 
         progname = *argv;
