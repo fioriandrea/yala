@@ -25,7 +25,7 @@
                 int cap; \
                 int nnodes; \
                 struct name##_table_node **buckets; \
-                int (*hash)(keytype); \
+                int (*hash)(keytype, int); \
                 int (*keyequal)(keytype, keytype); \
         }; \
         void name##_init(struct name *table, int (*hash)(keytype), int (*keyequal)(keytype, keytype)); \

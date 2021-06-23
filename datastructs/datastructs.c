@@ -93,7 +93,7 @@ LIST_DEFINE(valuelist, struct value)
         TABLE_FREE(name, keytype, valtype)
 
 #define TABLE_INIT(name, keytype, valtype) \
-        void name##_init(struct name *table, int (*hash)(keytype), int (*keyequal)(keytype, keytype)) \
+        void name##_init(struct name *table, int (*hash)(keytype, int), int (*keyequal)(keytype, keytype)) \
         { \
                 table->cap = table->nnodes = 0; \
                 table->buckets = NULL; \
@@ -112,7 +112,7 @@ LIST_DEFINE(valuelist, struct value)
                         struct name##_table_node *node, *next; \
                         node = table->buckets[i]; \
                         while (node != NULL) { \
-                                index = (*table->hash)(node->key) % newcap; \
+                                index = (*table->hash)(node->key, newcap); \
                                 next = node->next; \
                                 node->next = newbuckets[index]; \
                                 newbuckets[index] = node; \
@@ -128,7 +128,7 @@ LIST_DEFINE(valuelist, struct value)
 #define TABLE_TABLE_NODE(name, keytype, valtype) \
         struct name##_table_node *name##_node_get(struct name *table, keytype key) \
         { \
-                struct name##_table_node *node = table->cap == 0 ? NULL : table->buckets[(*(table->hash))(key) % table->cap]; \
+                struct name##_table_node *node = table->cap == 0 ? NULL : table->buckets[(*(table->hash))(key, table->cap)]; \
                 while (node != NULL) { \
                         if ((*table->keyequal)(key, node->key)) { \
                                 break; \
@@ -162,7 +162,7 @@ LIST_DEFINE(valuelist, struct value)
                 if (table->cap == 0 || (double) table->nnodes / (double) table->cap > TABLE_RESIZE_THRESHOLD) { \
                         name##_table_resize(table); \
                 } \
-                int index = (*table->hash)(key) % table->cap; \
+                int index = (*table->hash)(key, table->cap); \
                 struct name##_table_node *node = malloc(sizeof(struct name##_table_node)); \
                 node->next = table->buckets[index]; \
                 node->key = key; \
