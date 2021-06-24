@@ -56,6 +56,7 @@ main(int argc, char **argv)
         char *programtext;
         int proglen;
         struct tree_node *root;
+        int semanticsres;
         struct bytecode *code;
         struct vm vm;
 
@@ -70,6 +71,10 @@ main(int argc, char **argv)
         if (!root)
                 exit(1);
         treeprint(root);
+
+        analyze_semantics(&semanticsres, root);
+        if (!semanticsres)
+                exit(1);
 
         code = generate_bytecode(root);
         if (!code)

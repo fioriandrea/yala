@@ -84,4 +84,15 @@ void disassemble(struct bytecode *code);
 
 struct bytecode *generate_bytecode(struct tree_node *parsetree);
 
+enum expr_type_type {
+        TYPE_INTEGER,
+        TYPE_BOOLEAN,
+};
+
+struct expr_type {
+        enum expr_type_type type;
+};
+
+struct expr_type analyze_semantics(int *result, struct tree_node *root);
+
 #endif
