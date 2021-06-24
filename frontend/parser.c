@@ -434,7 +434,7 @@ parse_error(struct parser *ps, struct token tok, char *fmt, ...)
         va_start(args, fmt);
         ps->error_detected = 1;
         ps->panic = 1;
-        fprintf(stderr, "error ");
+        fprintf(stderr, "parse error ");
         if (tok.type == TOKEN_EOF) {
                 fprintf(stderr, "[at end]: ");
         } else {
@@ -513,7 +513,6 @@ nodetypestring(enum node_type type)
         case NODE_STRING_CONST: return "NODE_STRING_CONST";
         case NODE_STRING_TYPE: return "NODE_STRING_TYPE";
         case NODE_TIMES_EXPR: return "NODE_TIMES_EXPR";
-        case NODE_UNARY_MINUS_EXPR: return "NODE_UNARY_MINUS_EXPR";
         case NODE_VAR_DECL: return "NODE_VAR_DECL";
         case NODE_VAR_DECL_LIST: return "NODE_VAR_DECL_LIST";
         case NODE_VECTOR_CONST: return "NODE_VECTOR_CONST";

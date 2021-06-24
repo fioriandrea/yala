@@ -62,6 +62,9 @@ vm_run(struct vm *vm)
                 val0 = pop(vm);
                 push(vm, value_from_c_int(val0.as.integer / val1.as.integer));
                 break;
+        case OP_ZERO:
+                push(vm, value_from_c_int(0));
+                break;
         case OP_HALT:
                 val0 = pop(vm);
                 printf("HALT: ");
@@ -70,6 +73,7 @@ vm_run(struct vm *vm)
                 return 0;
                 break;
         default:
+                printf("NOT IMPLEMENTED: %s\n", opcodestring(current));
                 return 1;
                 break;
         }

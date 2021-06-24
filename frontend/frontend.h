@@ -126,7 +126,6 @@ enum node_type {
         NODE_STRING_CONST,
         NODE_STRING_TYPE,
         NODE_TIMES_EXPR,
-        NODE_UNARY_MINUS_EXPR,
         NODE_VAR_DECL,
         NODE_VAR_DECL_LIST,
         NODE_VECTOR_CONST,
