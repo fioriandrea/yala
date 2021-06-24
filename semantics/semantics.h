@@ -6,6 +6,8 @@
 #include "../datastructs/datastructs.h"
 #include "../frontend/frontend.h"
 
+#define MAX_JUMP UINT8_MAX
+
 enum opcode {
         OP_LOCI, /* constants */
         OP_LOCS,
@@ -16,13 +18,20 @@ enum opcode {
         OP_DIVI,
 
         OP_IGRT, /* comparison */
-        OP_ILET,
-        OP_NEQUA,
+        OP_ILT,
         OP_EQUA,
 
         OP_AND, /* boolean logic */
         OP_OR,
         OP_NOT,
+
+        OP_SKIP, /* jumps */
+        OP_SKIPF,
+
+        OP_ZERO, /* constants */
+        OP_ONE,
+
+        OP_POPV, /* value stack manipulation */
 
         OP_HALT,
 };
@@ -61,6 +70,7 @@ struct bytecode {
         struct bytes code;
         struct linelist lines;
         struct valuelist constants;
+        int error_detected;
 };
 
 void bytecode_init(struct bytecode *code);

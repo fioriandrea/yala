@@ -56,23 +56,8 @@ main(int argc, char **argv)
         char *programtext;
         int proglen;
         struct tree_node *root;
-
-        {
-                struct bytecode code;
-                bytecode_init(&code);
-                struct lineinfo linfo;
-                linfo.line = linfo.linepos = 0;
-                bytecode_write_byte(&code, OP_LOCI, linfo);
-                bytecode_write_constant(&code, value_from_c_int(2), linfo);
-                bytecode_write_byte(&code, OP_LOCI, linfo);
-                bytecode_write_constant(&code, value_from_c_int(4), linfo);
-                bytecode_write_byte(&code, OP_MULI, linfo);
-                bytecode_write_byte(&code, OP_HALT, linfo);
-                disassemble(&code);
-                struct vm vm;
-                vm_init(&vm, &code);
-                vm_run(&vm);
-        }
+        struct bytecode *code;
+        struct vm vm;
 
         progname = *argv;
         if (argc < 2) {
@@ -82,8 +67,20 @@ main(int argc, char **argv)
         programtext = load_program(progname, argv[1], &proglen);
 
         root = parse(programtext, proglen);
+        if (!root)
+                exit(1);
         treeprint(root);
+
+        code = generate_bytecode(root);
+        if (!code)
+                exit(1);
+        disassemble(code);
+
+        vm_init(&vm, code);
+        vm_run(&vm);
+
         tree_node_free(root);
+        bytecode_free(code);
         free(programtext);
         return 0;
 }
