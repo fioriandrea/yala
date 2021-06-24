@@ -46,6 +46,11 @@ void print_value(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
 
+struct lineinfo {
+        int line;
+        int linepos;
+};
+
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
 LIST_DECLARE(valuelist, struct value)

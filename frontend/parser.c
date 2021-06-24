@@ -13,19 +13,18 @@ struct parser {
         int error_detected;
 };
 
-static struct tree_node *new_tree_node(enum node_type type, int line, int linepos);
+static struct tree_node *new_tree_node(enum node_type type);
 static struct tree_node *new_tree_node_at_current(struct parser *ps, enum node_type type);
-static struct tree_node *new_binary_node(enum node_type type, struct tree_node *left, struct tree_node *right);
+static struct tree_node *new_binary_node(struct tree_node *left, struct token op, struct tree_node *right);
 static void parse_error(struct parser *ps, struct token tok, char *fmt, ...);
 static void error_at_current(struct parser *ps, char *msg);
 static void error_at_previous(struct parser *ps, char *msg);
-static enum node_type token_to_bin_node_type(struct token tok);
+static enum node_type token_to_bin_node_type(struct token op);
 static void advance(struct parser *ps);
 static int check(struct parser *ps, enum token_type type);
 static int eat(struct parser *ps, enum token_type type);
 static int eat_error(struct parser *ps, enum token_type type);
 static void synchronize(struct parser *ps);
-static char *copystrtoken(struct token tok);
 
 static struct tree_node *expr(struct parser *ps);
 static struct tree_node *boolean_expr(struct parser *ps);
@@ -76,9 +75,9 @@ boolean_expr(struct parser *ps)
 {
         struct tree_node *left = comp_expr(ps);
         while (eat(ps, TOKEN_AND) || eat(ps, TOKEN_OR)) {
-                enum node_type type = token_to_bin_node_type(ps->previous);
+                struct token op = ps->previous;
                 struct tree_node *right = comp_expr(ps);
-                left = new_binary_node(type, left, right);
+                left = new_binary_node(left, op, right);
         }
         return left;
 }
@@ -95,9 +94,9 @@ comp_expr(struct parser *ps)
                 eat(ps, TOKEN_EQ) ||
                 eat(ps, TOKEN_NEQ)
         ) {
-                        enum node_type type = token_to_bin_node_type(ps->previous);
+                        struct token op = ps->previous;
                         struct tree_node *right = add_expr(ps);
-                        left = new_binary_node(type, left, right);
+                        left = new_binary_node(left, op, right);
                 }
                 return left;
 }
@@ -107,9 +106,9 @@ add_expr(struct parser *ps)
 {
         struct tree_node *left = mul_expr(ps);
         while (eat(ps, TOKEN_PLUS) || eat(ps, TOKEN_MINUS)) {
-                enum node_type type = token_to_bin_node_type(ps->previous);
+                struct token op = ps->previous;
                 struct tree_node *right = mul_expr(ps);
-                left = new_binary_node(type, left, right);
+                left = new_binary_node(left, op, right);
         }
         return left;
 }
@@ -119,9 +118,9 @@ mul_expr(struct parser *ps)
 {
         struct tree_node *left = term(ps);
         while (eat(ps, TOKEN_STAR) || eat(ps, TOKEN_SLASH)) {
-                enum node_type type = token_to_bin_node_type(ps->previous);
+                struct token op = ps->previous;
                 struct tree_node *right = term(ps);
-                left = new_binary_node(type, left, right);
+                left = new_binary_node(left, op, right);
         }
         return left;
 }
@@ -185,16 +184,6 @@ static struct tree_node *
 integer_const(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_INTGER_CONST);
-
-        /* convert string to integer */
-        int num = 0;
-        char *str = ps->current.start;
-        while (str - ps->current.start < ps->current.length) {
-                num = num * 10 + (*str - '0');
-                str++;
-        }
-
-        res->value.ival = num;
         advance(ps);
         return res;
 }
@@ -203,7 +192,6 @@ static struct tree_node *
 string_const(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_STRING_CONST);
-        res->value.sval = copystrtoken(ps->current);
         advance(ps);
         return res;
 }
@@ -235,7 +223,6 @@ static struct tree_node *
 boolean_const(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_BOOLEAN_CONST);
-        res->value.bval = ps->current.type == TOKEN_TRUE;
         return res;
 }
 
@@ -290,12 +277,10 @@ dispatch_id_expr(struct parser *ps)
 {
         struct tree_node *res = lhs(ps);
         if (res->type == NODE_ID && eat(ps, TOKEN_LPAREN)) {
+                struct token op = ps->previous;
                 struct tree_node *args = expr_list(ps);
                 eat_error(ps, TOKEN_RPAREN);
-                struct tree_node *tmp = new_tree_node_at_current(ps, NODE_FUNCTION_CALL);
-                tmp->left = res;
-                tmp->right = args;
-                res = tmp;
+                res = new_binary_node(res, op, args);
         }
         return res;
 }
@@ -304,12 +289,12 @@ static struct tree_node *
 lhs(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_ID);
-        res->value.sval = copystrtoken(ps->current);
         advance(ps);
         while (eat(ps, TOKEN_LSQUARE)) {
+                struct token op =  ps->previous;
                 struct tree_node *index = expr(ps);
                 eat_error(ps, TOKEN_RSQUARE);
-                res = new_binary_node(NODE_INDEXING, res, index);
+                res = new_binary_node(res, op, index);
         }
         return res;
 }
@@ -386,7 +371,7 @@ synchronize(struct parser *ps)
 }
 
 static struct tree_node *
-new_tree_node(enum node_type type, int line, int linepos)
+new_tree_node(enum node_type type)
 {
         struct tree_node *node = malloc(sizeof(struct tree_node));
         node->type = type;
@@ -394,23 +379,49 @@ new_tree_node(enum node_type type, int line, int linepos)
         node->right =  NULL;
         node->child =  NULL;
         node->next = NULL;
-        node->linfo.line = line;
-        node->linfo.linepos = linepos;
         return node;
 }
 
 static struct tree_node *
 new_tree_node_at_current(struct parser *ps, enum node_type type)
 {
-        return new_tree_node(type, ps->current.line, ps->current.linepos);
+        struct tree_node *node = new_tree_node(type);
+        node->value = ps->current;
+        return node;
+}
+
+static enum
+node_type token_to_bin_node_type(struct token op)
+{
+        switch (op.type) {
+        case TOKEN_NEQ: return NODE_NEQ_EXPR;
+        case TOKEN_EQ: return NODE_EQ_EXPR;
+        case TOKEN_LESS: return NODE_LESS_EXPR;
+        case TOKEN_LESSEQ: return NODE_LESSEQ_EXPR;
+        case TOKEN_GREATER: return NODE_GREATER_EXPR;
+        case TOKEN_GREATEREQ: return NODE_GREATEREQ_EXPR;
+        case TOKEN_PLUS: return NODE_PLUS_EXPR;
+        case TOKEN_MINUS: return NODE_MINUS_EXPR;
+        case TOKEN_BANG: return NODE_NOT_EXPR;
+        case TOKEN_OR: return NODE_OR_EXPR;
+        case TOKEN_AND: return NODE_AND_EXPR;
+        case TOKEN_STAR: return NODE_TIMES_EXPR;
+        case TOKEN_SLASH: return NODE_DIVIDE_EXPR;
+        case TOKEN_LPAREN: return NODE_MODULE_CALL;
+        case TOKEN_LSQUARE: return NODE_INDEXING;
+        default: return -1;
+        }
 }
 
 static struct tree_node *
-new_binary_node(enum node_type type, struct tree_node *left, struct tree_node *right)
+new_binary_node(struct tree_node *left, struct token op, struct tree_node *right)
 {
-        struct tree_node *node = new_tree_node(type, left->linfo.line, left->linfo.linepos);
+
+        enum node_type type = token_to_bin_node_type(op);
+        struct tree_node *node = new_tree_node(type);
         node->left = left;
         node->right = right;
+        node->value = op;
         return node;
 }
 
@@ -452,36 +463,6 @@ error_at_previous(struct parser *ps, char *msg)
         parse_error(ps, ps->previous, msg);
 }
 
-static enum
-node_type token_to_bin_node_type(struct token tok)
-{
-        switch (tok.type) {
-        case TOKEN_NEQ: return NODE_NEQ_EXPR;
-        case TOKEN_EQ: return NODE_EQ_EXPR;
-        case TOKEN_LESS: return NODE_LESS_EXPR;
-        case TOKEN_LESSEQ: return NODE_LESSEQ_EXPR;
-        case TOKEN_GREATER: return NODE_GREATER_EXPR;
-        case TOKEN_GREATEREQ: return NODE_GREATEREQ_EXPR;
-        case TOKEN_PLUS: return NODE_PLUS_EXPR;
-        case TOKEN_MINUS: return NODE_MINUS_EXPR;
-        case TOKEN_BANG: return NODE_NOT_EXPR;
-        case TOKEN_OR: return NODE_OR_EXPR;
-        case TOKEN_AND: return NODE_AND_EXPR;
-        case TOKEN_STAR: return NODE_TIMES_EXPR;
-        case TOKEN_SLASH: return NODE_DIVIDE_EXPR;
-        default: return -1;
-        }
-}
-
-static char *
-copystrtoken(struct token tok)
-{
-        char *str = malloc(sizeof(char) * (tok.length + 1));
-        strncpy(str, tok.start, tok.length);
-        str[tok.length] = '\0';
-        return str;
-}
-
 char *
 nodetypestring(enum node_type type)
 {
@@ -493,7 +474,7 @@ nodetypestring(enum node_type type)
         case NODE_BREAK_STAT: return "NODE_BREAK_STAT";
         case NODE_COND_EXPR: return "NODE_COND_EXPR";
         case NODE_DIVIDE_EXPR: return "NODE_DIVIDE_EXPR";
-        case NODE_NEG_EXPR: return "NODE_NEG_EXPR";
+        case NODE_ELSIF_EXPR_LIST: return "NODE_ELSIF_EXPR_LIST";
         case NODE_EQ_EXPR: return "NODE_EQ_EXPR";
         case NODE_EXIT_STAT: return "NODE_EXIT_STAT";
         case NODE_EXPR_BODY: return "NODE_EXPR_BODY";
@@ -501,30 +482,29 @@ nodetypestring(enum node_type type)
         case NODE_FORMAL_DECL: return "NODE_FORMAL_DECL";
         case NODE_FOR_STAT: return "NODE_FOR_STAT";
         case NODE_FUNCTION_DECL: return "NODE_FUNCTION_DECL";
-        case NODE_FUNCTION_CALL: return "NODE_FUNCTION_CALL";
         case NODE_GREATEREQ_EXPR: return "NODE_GREATEREQ_EXPR";
         case NODE_GREATER_EXPR: return "NODE_GREATER_EXPR";
-        case NODE_ID_LIST: return "NODE_ID_LIST";
         case NODE_ID: return "NODE_ID";
+        case NODE_ID_LIST: return "NODE_ID_LIST";
         case NODE_IF_STAT: return "NODE_IF_STAT";
         case NODE_INDEXING: return "NODE_INDEXING";
         case NODE_INTEGER_TYPE: return "NODE_INTEGER_TYPE";
         case NODE_INTGER_CONST: return "NODE_INTGER_CONST";
         case NODE_LESSEQ_EXPR: return "NODE_LESSEQ_EXPR";
-        case NODE_LHS: return "NODE_LHS";
         case NODE_LESS_EXPR: return "NODE_LESS_EXPR";
+        case NODE_LHS: return "NODE_LHS";
         case NODE_MINUS_EXPR: return "NODE_MINUS_EXPR";
-        case NODE_MODE_INOUT: return "NODE_MODE_INOUT";
         case NODE_MODE_IN: return "NODE_MODE_IN";
+        case NODE_MODE_INOUT: return "NODE_MODE_INOUT";
         case NODE_MODE_OUT: return "NODE_MODE_OUT";
+        case NODE_MODULE_CALL: return "NODE_MODULE_CALL";
         case NODE_MODULE_DECL_LIST: return "NODE_MODULE_DECL_LIST";
+        case NODE_NEG_EXPR: return "NODE_NEG_EXPR";
         case NODE_NEQ_EXPR: return "NODE_NEQ_EXPR";
         case NODE_NOT_EXPR: return "NODE_NOT_EXPR";
-        case NODE_ELSIF_EXPR_LIST: return "NODE_ELSIF_EXPR_LIST";
         case NODE_OR_EXPR: return "NODE_OR_EXPR";
         case NODE_PLUS_EXPR: return "NODE_PLUS_EXPR";
         case NODE_PROCEDURE_DECL: return "NODE_PROCEDURE_DECL";
-        case NODE_PROC_CALL_NODE: return "NODE_PROC_CALL_NODE";
         case NODE_PROGRAM: return "NODE_PROGRAM";
         case NODE_READ_STAT: return "NODE_READ_STAT";
         case NODE_REPEAT_STAT: return "NODE_REPEAT_STAT";
@@ -534,8 +514,8 @@ nodetypestring(enum node_type type)
         case NODE_STRING_TYPE: return "NODE_STRING_TYPE";
         case NODE_TIMES_EXPR: return "NODE_TIMES_EXPR";
         case NODE_UNARY_MINUS_EXPR: return "NODE_UNARY_MINUS_EXPR";
-        case NODE_VAR_DECL_LIST: return "NODE_VAR_DECL_LIST";
         case NODE_VAR_DECL: return "NODE_VAR_DECL";
+        case NODE_VAR_DECL_LIST: return "NODE_VAR_DECL_LIST";
         case NODE_VECTOR_CONST: return "NODE_VECTOR_CONST";
         case NODE_VECTOR_TYPE: return "NODE_VECTOR_TYPE";
         case NODE_WHILE_STAT: return "NODE_WHILE_STAT";
@@ -563,22 +543,8 @@ treeprinthelper(struct tree_node *root, int level)
                 printf("%s%s%s ", tee, dash, dash);
         }
 
-        printf("%s (%d:%d)", nodetypestring(root->type), root->linfo.line, root->linfo.linepos);
-        switch (root->type) {
-        case NODE_ID:
-        case NODE_STRING_CONST:
-                printf(" (%s)", root->value.sval);
-                break;
-        case NODE_INTGER_CONST:
-                printf(" (%d)", root->value.ival);
-                break;
-        case NODE_BOOLEAN_CONST:
-                printf(" (%s)", root->value.bval ? "true" : "false");
-                break;
-        default:
-                break;
-        }
-        printf("\n");
+        printf("%s ", nodetypestring(root->type));
+        printf("[%.*s %d:%d]\n", root->value.length, root->value.start, root->value.line, root->value.linepos);
         /* right first for clarity in output for nested binary expressions */
         treeprinthelper(root->right, level + 1);
         treeprinthelper(root->left, level + 1);
@@ -600,8 +566,6 @@ tree_node_free(struct tree_node *root)
 {
         if (root == NULL)
                 return;
-        if (root->type == NODE_STRING_CONST || root->type == NODE_ID)
-                free(root->value.sval);
         tree_node_free(root->left);
         tree_node_free(root->right);
         struct tree_node *child = root->child;
@@ -610,4 +574,5 @@ tree_node_free(struct tree_node *root)
                 tree_node_free(child);
                 child = next;
         }
+        free(root);
 }
