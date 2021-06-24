@@ -223,6 +223,7 @@ static struct tree_node *
 boolean_const(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_BOOLEAN_CONST);
+        advance(ps);
         return res;
 }
 
