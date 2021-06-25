@@ -9,7 +9,8 @@ struct expr_type
 analyze_semantics(int *result, struct tree_node *root)
 {
         *result = 1;
-        struct expr_type lefttype, righttype;
+        struct tree_node *child;
+        struct expr_type lefttype, righttype, childtype0, childtype1;
         struct expr_type inttype, booltype;
         inttype.type = TYPE_INTEGER;
         booltype.type = TYPE_BOOLEAN;
@@ -62,6 +63,21 @@ analyze_semantics(int *result, struct tree_node *root)
                         semantics_error(result, root, "operands must be integers");
                 }
                 return inttype;
+        case NODE_COND_EXPR:
+                child = root->child;
+                childtype0 = analyze_semantics(result, child);
+                if (childtype0.type != TYPE_BOOLEAN) {
+                        semantics_error(result, root, "if condition must be boolean");
+                }
+                child = child->next;
+                childtype0 = analyze_semantics(result, child);
+                while (child != NULL) {
+                        childtype1 = analyze_semantics(result, child);
+                        if (childtype0.type != childtype1.type) {
+                                semantics_error(result, child, "conditional expression types must be the same");
+                        }
+                }
+                return childtype0;
         case NODE_BOOLEAN_CONST:
                 return booltype;
         case NODE_INTGER_CONST:
