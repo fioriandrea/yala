@@ -5,11 +5,46 @@
 
 static void semantics_error(int *result, struct tree_node *root, char *fmt, ...);
 
+static struct expr_type
+analyze_cond_expr(int *result, struct tree_node *root)
+{
+        struct tree_node *child, *subchild;
+        struct expr_type type0, type1;
+        child = root->child;
+        type1 = analyze_semantics(result, child);
+        if (type1.type != TYPE_BOOLEAN) {
+                semantics_error(result, child, "if condition must be boolean");
+        }
+        child = child->next;
+        type0 = analyze_semantics(result, child);
+        child = child->next;
+        if (child->type == NODE_ELSIF_EXPR_LIST) {
+                subchild = child->child;
+                while (subchild != NULL) {
+                        type1 = analyze_semantics(result, subchild);
+                        if (type1.type != TYPE_BOOLEAN) {
+                                semantics_error(result, subchild, "elsif condition must be boolean");
+                        }
+                        subchild = subchild->next;
+                        type1 = analyze_semantics(result, subchild);
+                        if (type0.type != type1.type) {
+                                semantics_error(result, subchild, "conditional expression types must be the same");
+                        }
+                        subchild = subchild->next;
+                }
+                child = child->next;
+        }
+        type1 = analyze_semantics(result, child);
+        if (type0.type != type1.type) {
+                semantics_error(result, child, "conditional expression types must be the same");
+        }
+        return type0;
+}
+
 struct expr_type
 analyze_semantics(int *result, struct tree_node *root)
 {
-        struct tree_node *child;
-        struct expr_type lefttype, righttype, childtype0, childtype1;
+        struct expr_type lefttype, righttype;
         struct expr_type inttype, booltype;
         inttype.type = TYPE_INTEGER;
         booltype.type = TYPE_BOOLEAN;
@@ -63,22 +98,7 @@ analyze_semantics(int *result, struct tree_node *root)
                 }
                 return inttype;
         case NODE_COND_EXPR:
-                child = root->child;
-                childtype0 = analyze_semantics(result, child);
-                if (childtype0.type != TYPE_BOOLEAN) {
-                        semantics_error(result, root, "if condition must be boolean");
-                }
-                child = child->next;
-                childtype0 = analyze_semantics(result, child);
-                child = child->next;
-                while (child != NULL) {
-                        childtype1 = analyze_semantics(result, child);
-                        if (childtype0.type != childtype1.type) {
-                                semantics_error(result, child, "conditional expression types must be the same");
-                        }
-                        child = child->next;
-                }
-                return childtype0;
+                return analyze_cond_expr(result, root);
         case NODE_BOOLEAN_CONST:
                 return booltype;
         case NODE_INTGER_CONST:
