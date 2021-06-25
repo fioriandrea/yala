@@ -95,11 +95,7 @@ emit_code(struct bytecode *code, struct tree_node *root)
         case NODE_GREATEREQ_EXPR:
                 emit_code(code, root->left);
                 emit_code(code, root->right);
-                emit_byte(code, root, OP_IGRT);
-                emit_code(code, root->left);
-                emit_code(code, root->right);
-                emit_byte(code, root, OP_EQUA);
-                emit_byte(code, root, OP_AND);
+                emit_byte(code, root, OP_IGRTEQ);
                 break;
         case NODE_GREATER_EXPR:
                 emit_code(code, root->left);
@@ -109,11 +105,7 @@ emit_code(struct bytecode *code, struct tree_node *root)
         case NODE_LESSEQ_EXPR:
                 emit_code(code, root->left);
                 emit_code(code, root->right);
-                emit_byte(code, root, OP_ILT);
-                emit_code(code, root->left);
-                emit_code(code, root->right);
-                emit_byte(code, root, OP_EQUA);
-                emit_byte(code, root, OP_AND);
+                emit_byte(code, root, OP_ILEQ);
                 break;
         case NODE_LESS_EXPR:
                 emit_code(code, root->left);
@@ -206,10 +198,10 @@ opcodestring(enum opcode code)
         case OP_MULI: return "OP_MULI";
         case OP_DIVI: return "OP_DIVI";
         case OP_IGRT: return "OP_IGRT";
+        case OP_IGRTEQ: return "OP_IGRTEQ";
         case OP_ILT: return "OP_ILT";
+        case OP_ILEQ: return "OP_ILEQ";
         case OP_EQUA: return "OP_EQUA";
-        case OP_AND: return "OP_AND";
-        case OP_OR: return "OP_OR";
         case OP_NOT: return "OP_NOT";
         case OP_SKIP: return "OP_SKIP";
         case OP_SKIPF: return "OP_SKIPF";
@@ -219,38 +211,6 @@ opcodestring(enum opcode code)
         case OP_HALT: return "OP_HALT";
         }
         return "unreachable return in opcodestring";
-}
-
-void
-print_value(struct value v)
-{
-        switch (v.type) {
-        case VAL_INTEGER:
-                printf("%d", v.as.integer);
-                return;
-        case VAL_BOOLEAN:
-                printf("%s", v.as.boolean ? "true" : "false");
-                return;
-        }
-        printf("unreachable value type %d", v.type);
-}
-
-struct value
-value_from_c_int(int i)
-{
-        struct value v;
-        v.type = VAL_INTEGER;
-        v.as.integer = i;
-        return v;
-}
-
-struct value
-value_from_c_bool(int b)
-{
-        struct value v;
-        v.type = VAL_BOOLEAN;
-        v.as.boolean = b;
-        return v;
 }
 
 void
@@ -316,7 +276,15 @@ disassemble_constant(struct bytecode *code, int ip)
         uint8_t constantaddr = bytes_at(&code->code, ip);
         struct value val = valuelist_at(&code->constants, constantaddr);
         print_value(val);
-        disassemble_lineinfo(code, ip);
+        printf(" ");
+        return ip + 1;
+}
+
+static int
+disassemble_argument(struct bytecode *code, int ip)
+{
+        uint8_t arg = bytes_at(&code->code, ip);
+        printf("%d ", arg);
         return ip + 1;
 }
 
@@ -326,18 +294,21 @@ disassemble(struct bytecode *code)
         int ip = 0;
         while (code && ip < bytes_len(&code->code)) {
                 uint8_t instruction = bytes_at(&code->code, ip);
-                printf("%s", opcodestring(instruction));
-                disassemble_lineinfo(code, ip);
-                printf(" ");
+                printf("%s ", opcodestring(instruction));
                 ip++;
                 switch (instruction) {
                 case OP_LOCI:
                 case OP_LOCS:
                         ip = disassemble_constant(code, ip);
                         break;
+                case OP_SKIP:
+                case OP_SKIPF:
+                        ip = disassemble_argument(code, ip);
+                        break;
                 default:
                         break;
                 }
+                disassemble_lineinfo(code, ip);
                 printf("\n");
         }
 }

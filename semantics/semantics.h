@@ -18,12 +18,12 @@ enum opcode {
         OP_DIVI,
 
         OP_IGRT, /* comparison */
+        OP_IGRTEQ,
         OP_ILT,
+        OP_ILEQ,
         OP_EQUA,
 
-        OP_AND, /* boolean logic */
-        OP_OR,
-        OP_NOT,
+        OP_NOT, /* boolean logic */
 
         OP_SKIP, /* jumps */
         OP_SKIPF,
@@ -54,6 +54,7 @@ struct value {
 void print_value(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
+int values_equal(struct value val0, struct value val1);
 
 struct lineinfo {
         int line;
