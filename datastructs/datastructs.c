@@ -59,7 +59,7 @@
 #define LIST_FREE(name, type) \
         void name##_free(struct name *list) \
         { \
-                GROW_ARRAY(type, list->buffer, list->cap, 0); \
+                list->buffer = GROW_ARRAY(type, list->buffer, list->cap, 0); \
         }
 
 static void *
@@ -68,6 +68,8 @@ grow_array(void *buffer, int oldcap, int newcap, size_t size)
         if (newcap == 0 && buffer != NULL) {
                 free(buffer);
                 return NULL;
+        } else if (oldcap == 0) {
+                return malloc(size * newcap);
         } else {
                 return realloc(buffer, size * newcap);
         }

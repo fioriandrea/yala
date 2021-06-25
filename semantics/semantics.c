@@ -96,7 +96,7 @@ analyze_semantics(int *result, struct tree_node *root)
                 if (lefttype.type != TYPE_INTEGER || righttype.type != TYPE_INTEGER) {
                         semantics_error(result, root, "operands must be integers");
                 }
-                return inttype;
+                return booltype;
         case NODE_COND_EXPR:
                 return analyze_cond_expr(result, root);
         case NODE_BOOLEAN_CONST:

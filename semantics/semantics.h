@@ -7,6 +7,8 @@
 #include "../frontend/frontend.h"
 
 #define MAX_JUMP UINT8_MAX
+#define MAX_JUMP_LONG UINT16_MAX
+#define MAX_CONDITIONAL_LEN 400
 
 enum opcode {
         OP_LOCI, /* constants */
@@ -27,6 +29,8 @@ enum opcode {
 
         OP_SKIP, /* jumps */
         OP_SKIPF,
+        OP_SKIP_LONG,
+        OP_SKIPF_LONG,
 
         OP_ZERO, /* constants */
         OP_ONE,

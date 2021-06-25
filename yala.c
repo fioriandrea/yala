@@ -44,7 +44,7 @@ load_program(char *progname, char *fname, int *proglen)
                 exit(1);
         }
         fclose(fp);
-        programtext[fsize + 1] = '\0';
+        programtext[fsize] = '\0';
         *proglen = fsize;
         return programtext;
 }

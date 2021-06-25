@@ -5,8 +5,11 @@
 #include "semantics.h"
 
 static void emit_code(struct bytecode *code, struct tree_node *root);
+static int patch_skip_long(struct bytecode *code, struct tree_node *root, int codelen);
+static void emit_cond_expr(struct bytecode *code, struct tree_node *root);
 static void emit_byte(struct bytecode *code, struct tree_node *root, uint8_t byte);
 static void emit_two_bytes(struct bytecode *code, struct tree_node *root, uint8_t byte0, uint8_t byte1);
+static void emit_three_bytes(struct bytecode *code, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2);
 static void emit_constant(struct bytecode *code, struct tree_node *root, struct value val);
 static void codegen_error(struct bytecode *code, struct tree_node *root, char *fmt, ...);
 static int parse_boolean_token(struct token token);
@@ -29,38 +32,33 @@ generate_bytecode(struct tree_node *parsetree)
 static void
 emit_code(struct bytecode *code, struct tree_node *root)
 {
-        int codelen, jumplen;
+        if (code->error_detected)
+                return;
+        int codelen;
         switch (root->type) {
         case NODE_AND_EXPR:
                 emit_code(code, root->left);
-                emit_two_bytes(code, root, OP_SKIPF, 0);
+                emit_three_bytes(code, root, OP_SKIPF_LONG, 0, 0);
                 codelen = bytes_len(&code->code);
                 emit_byte(code, root, OP_POPV);
                 emit_code(code, root->right);
-                jumplen = bytes_len(&code->code) - codelen;
-                if (jumplen > MAX_JUMP) {
-                        codegen_error(code, root, "max jump size (%d) exceeded", MAX_JUMP);
-                        return;
-                }
-                code->code.buffer[codelen - 1] = jumplen;
+                patch_skip_long(code, root, codelen);
                 break;
         case NODE_OR_EXPR:
                 emit_code(code, root->left);
-                emit_two_bytes(code, root, OP_SKIPF, 2);
-                emit_two_bytes(code, root, OP_SKIP, 0);
+                emit_two_bytes(code, root, OP_SKIPF, 3);
+                emit_three_bytes(code, root, OP_SKIP_LONG, 0, 0);
                 codelen = bytes_len(&code->code);
                 emit_byte(code, root, OP_POPV);
                 emit_code(code, root->right);
-                jumplen = bytes_len(&code->code) - codelen;
-                if (jumplen > MAX_JUMP) {
-                        codegen_error(code, root, "max jump size (%d) exceeded", MAX_JUMP);
-                        return;
-                }
-                code->code.buffer[codelen - 1] = jumplen;
+                patch_skip_long(code, root, codelen);
                 break;
         case NODE_NOT_EXPR:
                 emit_code(code, root->child);
                 emit_byte(code, root, OP_NOT);
+                break;
+        case NODE_COND_EXPR:
+                emit_cond_expr(code, root);
                 break;
         case NODE_PLUS_EXPR:
                 emit_code(code, root->left);
@@ -120,14 +118,89 @@ emit_code(struct bytecode *code, struct tree_node *root)
                 break;
         case NODE_BOOLEAN_CONST:
                 emit_byte(code, root, OP_LOCI);
+                if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
+                        codegen_error(code, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+                        return;
+                }
                 emit_constant(code, root, value_from_c_bool(parse_boolean_token(root->value)));
                 break;
         case NODE_INTGER_CONST:
                 emit_byte(code, root, OP_LOCI);
+                if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
+                        codegen_error(code, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+                        return;
+                }
                 emit_constant(code, root, value_from_c_int(parse_integer_token(root->value)));
                 break;
         default:
                 codegen_error(code, root, "code generation for node not implemented (%s)", node_type_string(root->type));
+        }
+}
+
+static int
+patch_skip_long(struct bytecode *code, struct tree_node *root, int codelen)
+{
+        int jumplen;
+        uint8_t jumplenfst, jumplenscn;
+        jumplen = bytes_len(&code->code) - codelen;
+        if (jumplen > MAX_JUMP_LONG) {
+                codegen_error(code, root, "max jump size (%d) exceeded", MAX_JUMP_LONG);
+                return 0;
+        }
+        jumplenfst = (unsigned) jumplen >> 8;
+        jumplenscn = (unsigned) jumplen & 0xff;
+        code->code.buffer[codelen - 2] = jumplenfst;
+        code->code.buffer[codelen - 1] = jumplenscn;
+        return 1;
+}
+
+static void
+emit_cond_expr(struct bytecode *code, struct tree_node *root)
+{
+        int toendlens[MAX_CONDITIONAL_LEN];
+        int codelen, *toendp;
+        toendp = toendlens;
+        struct tree_node *child, *subchild;
+        child = root->child;
+
+        emit_code(code, child);
+        emit_three_bytes(code, child, OP_SKIPF_LONG, 0, 0);
+        codelen = bytes_len(&code->code);
+        emit_byte(code, child, OP_POPV);
+        child = child->next;
+        emit_code(code, child);
+        emit_three_bytes(code, child, OP_SKIP_LONG, 0, 0);
+        *toendp++ = bytes_len(&code->code);
+        patch_skip_long(code, child, codelen);
+        emit_byte(code, child, OP_POPV);
+        child = child->next;
+
+        if (child->type == NODE_ELSIF_EXPR_LIST) {
+                subchild = child->child;
+                while (subchild != NULL) {
+                        emit_code(code, subchild);
+                        emit_three_bytes(code, subchild, OP_SKIPF_LONG, 0, 0);
+                        codelen = bytes_len(&code->code);
+                        emit_byte(code, subchild, OP_POPV);
+                        subchild = subchild->next;
+                        emit_code(code, subchild);
+                        emit_three_bytes(code, subchild, OP_SKIP_LONG, 0, 0);
+                        if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
+                                codegen_error(code, subchild, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
+                                return;
+                        }
+                        *toendp++ = bytes_len(&code->code);
+                        patch_skip_long(code, subchild, codelen);
+                        emit_byte(code, subchild, OP_POPV);
+                        subchild = subchild->next;
+                }
+                child = child->next;
+        }
+
+        emit_code(code, child);
+        while (toendp > toendlens) {
+                if (!patch_skip_long(code, root, *--toendp))
+                        return;
         }
 }
 
@@ -145,6 +218,14 @@ emit_two_bytes(struct bytecode *code, struct tree_node *root, uint8_t byte0, uin
 {
         emit_byte(code, root, byte0);
         emit_byte(code, root, byte1);
+}
+
+static void
+emit_three_bytes(struct bytecode *code, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2)
+{
+        emit_byte(code, root, byte0);
+        emit_byte(code, root, byte1);
+        emit_byte(code, root, byte2);
 }
 
 static void
@@ -205,6 +286,8 @@ opcodestring(enum opcode code)
         case OP_NOT: return "OP_NOT";
         case OP_SKIP: return "OP_SKIP";
         case OP_SKIPF: return "OP_SKIPF";
+        case OP_SKIP_LONG: return "OP_SKIP_LONG";
+        case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
         case OP_ZERO: return "OP_ZERO";
         case OP_ONE: return "OP_ONE";
         case OP_POPV: return "OP_POPV";
@@ -267,25 +350,34 @@ bytecode_free(struct bytecode *code)
 static void
 disassemble_lineinfo(struct bytecode *code, int ip)
 {
-        printf("(%d:%d)", linelist_at(&code->lines, ip).line, linelist_at(&code->lines, ip).linepos);
+        printf("[%d:%d]", linelist_at(&code->lines, ip - 1).line, linelist_at(&code->lines, ip - 1).linepos);
 }
 
 static int
 disassemble_constant(struct bytecode *code, int ip)
 {
-        uint8_t constantaddr = bytes_at(&code->code, ip);
+        uint8_t constantaddr = bytes_at(&code->code, ip++);
         struct value val = valuelist_at(&code->constants, constantaddr);
         value_print(val);
         printf(" ");
-        return ip + 1;
+        return ip;
 }
 
 static int
 disassemble_argument(struct bytecode *code, int ip)
 {
-        uint8_t arg = bytes_at(&code->code, ip);
+        uint8_t arg = bytes_at(&code->code, ip++);
         printf("%d ", arg);
-        return ip + 1;
+        return ip;
+}
+
+static int
+disassemble_argument_long(struct bytecode *code, int ip)
+{
+        uint8_t arg0 = bytes_at(&code->code, ip++);
+        uint8_t arg1 = bytes_at(&code->code, ip++);
+        printf("%d ", ((unsigned) arg0 << 8) | arg1);
+        return ip;
 }
 
 void
@@ -294,7 +386,7 @@ disassemble(struct bytecode *code)
         int ip = 0;
         while (code && ip < bytes_len(&code->code)) {
                 uint8_t instruction = bytes_at(&code->code, ip);
-                printf("%s ", opcodestring(instruction));
+                printf("%d: %s ", ip, opcodestring(instruction));
                 ip++;
                 switch (instruction) {
                 case OP_LOCI:
@@ -304,6 +396,10 @@ disassemble(struct bytecode *code)
                 case OP_SKIP:
                 case OP_SKIPF:
                         ip = disassemble_argument(code, ip);
+                        break;
+                case OP_SKIP_LONG:
+                case OP_SKIPF_LONG:
+                        ip = disassemble_argument_long(code, ip);
                         break;
                 default:
                         break;

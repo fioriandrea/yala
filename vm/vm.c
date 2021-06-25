@@ -35,6 +35,15 @@ peekv(struct vm *vm, int offset)
         return *(vm->sp - offset);
 }
 
+static uint16_t
+join_bytes(uint8_t left, uint8_t right)
+{
+        uint16_t res = left;
+        res = ((uint16_t) res) << 8;
+        res = res | right;
+        return res;
+}
+
 static void
 runtime_error(struct vm *vm, uint8_t pos, char *fmt, ...)
 {
@@ -54,7 +63,8 @@ vm_run(struct vm *vm)
         struct value val0;
         struct value val1;
         uint8_t current;
-        uint8_t arg0;
+        uint8_t arg0, arg1;
+        uint8_t arglong0;
 
         for (;;) {
         current = advance_ip(vm);
@@ -128,9 +138,24 @@ vm_run(struct vm *vm)
                 break;
         case OP_SKIPF:
                 arg0 = advance_ip(vm);
-                val0 = peekv(vm, 0);
+                val0 = peekv(vm, 1);
                 if (!val0.as.boolean) {
                         vm->ip += arg0;
+                }
+                break;
+        case OP_SKIP_LONG:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                vm->ip += arglong0;
+                break;
+        case OP_SKIPF_LONG:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                val0 = peekv(vm, 1);
+                if (!val0.as.boolean) {
+                        vm->ip += arglong0;
                 }
                 break;
         case OP_POPV:

@@ -30,7 +30,7 @@ value_from_c_bool(int b)
 {
         struct value v;
         v.type = VAL_BOOLEAN;
-        v.as.boolean = b;
+        v.as.boolean = !!b;
         return v;
 }
 
