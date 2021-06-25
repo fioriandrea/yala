@@ -105,7 +105,6 @@ enum node_type {
         NODE_INTGER_CONST,
         NODE_LESSEQ_EXPR,
         NODE_LESS_EXPR,
-        NODE_LHS,
         NODE_MINUS_EXPR,
         NODE_MODE_IN,
         NODE_MODE_INOUT,

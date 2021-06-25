@@ -140,7 +140,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                 {"begin", 5, TOKEN_BEGIN},
                 {"boolean", 7, TOKEN_BOOLEAN},
                 {"break", 5, TOKEN_BREAK},
-                {"do", 1, TOKEN_DO},
+                {"do", 2, TOKEN_DO},
                 {"else", 4, TOKEN_ELSE},
                 {"elsif", 5, TOKEN_ELSIF},
                 {"end", 3, TOKEN_END},

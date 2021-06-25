@@ -15,16 +15,23 @@ struct parser {
 
 static struct tree_node *new_tree_node(enum node_type type);
 static struct tree_node *new_tree_node_at_current(struct parser *ps, enum node_type type);
+static struct tree_node *new_tree_node_at_previous(struct parser *ps, enum node_type type);
 static struct tree_node *new_binary_node(struct tree_node *left, struct token op, struct tree_node *right);
 static void parse_error(struct parser *ps, struct token tok, char *fmt, ...);
 static void error_at_current(struct parser *ps, char *msg);
-static void error_at_previous(struct parser *ps, char *msg);
 static enum node_type token_to_bin_node_type(struct token op);
 static void advance(struct parser *ps);
 static int check(struct parser *ps, enum token_type type);
 static int eat(struct parser *ps, enum token_type type);
 static int eat_error(struct parser *ps, enum token_type type);
 static void synchronize(struct parser *ps);
+
+struct tree_node *stat_list(struct parser *ps);
+struct tree_node *stat(struct parser *ps);
+struct tree_node *dispatch_id_stat(struct parser *ps);
+struct tree_node *id_list_empty(struct parser *ps);
+struct tree_node *type_label(struct parser *ps);
+struct tree_node *expr_stat(struct parser *ps);
 
 static struct tree_node *expr(struct parser *ps);
 static struct tree_node *boolean_expr(struct parser *ps);
@@ -42,8 +49,8 @@ static struct tree_node *boolean_const(struct parser *ps);
 static struct tree_node *grouping_expr(struct parser *ps);
 static struct tree_node *conditional_expr(struct parser *ps);
 static struct tree_node *elsif_expr_list(struct parser *ps);
+struct tree_node *id_expr(struct parser *ps);
 static struct tree_node *dispatch_id_expr(struct parser *ps);
-static struct tree_node *lhs(struct parser *ps);
 static struct tree_node *expr_list(struct parser *ps);
 
 struct tree_node *
@@ -56,13 +63,104 @@ parse(char *program, int programlen)
         parser.current = next_token(&lexer);
         parser.panic = 0;
         parser.error_detected = 0;
-        struct tree_node *res = expr(&parser);
+        struct tree_node *res = stat_list(&parser);
         if (parser.error_detected) {
                 tree_node_free(res);
                 return NULL;
         }
         return res;
 }
+
+struct tree_node *
+stat_list(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_STAT_LIST);
+        struct tree_node **statp = &res->child;
+        while (!check(ps, TOKEN_EOF)) {
+                *statp = stat(ps);
+                if (*statp != NULL)
+                        statp = &(*statp)->next;
+                if (ps->panic)
+                        synchronize(ps);
+                eat_error(ps, TOKEN_SEMICOLON);
+        }
+        return res;
+}
+
+struct tree_node *
+stat(struct parser *ps)
+{
+        switch (ps->current.type) {
+        case TOKEN_ID:
+                return dispatch_id_stat(ps);
+        default:
+                return expr_stat(ps);
+        }
+}
+
+struct tree_node *
+dispatch_id_stat(struct parser *ps)
+{
+        struct tree_node *res;
+        res = expr(ps);
+        if (res->type != NODE_ID) {
+                return res;
+        }
+        if (check(ps, TOKEN_COLON) || check(ps, TOKEN_COMMA)) {
+                struct tree_node *tmp;
+                if (check(ps, TOKEN_COMMA))
+                        advance(ps);
+                tmp = id_list_empty(ps);
+                tmp->value = res->value;
+                res->next = tmp->child;
+                tmp->child = res;
+                res = tmp;
+                eat_error(ps, TOKEN_COLON);
+                tmp = new_tree_node_at_previous(ps, NODE_VAR_DECL);
+                tmp->left = res;
+                tmp->right = type_label(ps);
+                res = tmp;
+        }
+        return res;
+}
+
+struct tree_node *
+id_list_empty(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_ID_LIST);
+        struct tree_node **chp = &res->child;
+        while (check(ps, TOKEN_ID)) {
+                *chp = id_expr(ps);
+                chp = &(*chp)->next;
+                eat(ps, TOKEN_COMMA);
+        }
+        return res;
+}
+
+struct tree_node *
+type_label(struct parser *ps)
+{ 
+        advance(ps);
+        switch (ps->previous.type) {
+        case TOKEN_STRING:
+                return new_tree_node_at_previous(ps, NODE_STRING_TYPE);
+        case TOKEN_INTEGER:
+                return new_tree_node_at_previous(ps, NODE_INTEGER_TYPE);
+        case TOKEN_BOOLEAN:
+                return new_tree_node_at_previous(ps, NODE_BOOLEAN_TYPE);
+        default:
+                parse_error(ps, ps->previous, "unrecognized type");
+                return NULL;
+        }
+}
+
+struct tree_node *
+expr_stat(struct parser *ps)
+{
+        return expr(ps);
+}
+
+/* expressions */
 
 struct tree_node *
 expr(struct parser *ps)
@@ -146,7 +244,7 @@ term(struct parser *ps)
                 return dispatch_id_expr(ps);
         default:
                 error_at_current(ps, "unexpected token");
-        return NULL;
+                return NULL;
         }
 }
 
@@ -273,29 +371,31 @@ elsif_expr_list(struct parser *ps)
         return res;
 }
 
-static struct tree_node *
-dispatch_id_expr(struct parser *ps)
+struct tree_node *
+id_expr(struct parser *ps)
 {
-        struct tree_node *res = lhs(ps);
-        if (res->type == NODE_ID && eat(ps, TOKEN_LPAREN)) {
-                struct token op = ps->previous;
-                struct tree_node *args = expr_list(ps);
-                eat_error(ps, TOKEN_RPAREN);
-                res = new_binary_node(res, op, args);
-        }
-        return res;
+        advance(ps);
+        return new_tree_node_at_previous(ps, NODE_ID);
 }
 
 static struct tree_node *
-lhs(struct parser *ps)
+dispatch_id_expr(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node_at_current(ps, NODE_ID);
-        advance(ps);
-        while (eat(ps, TOKEN_LSQUARE)) {
-                struct token op =  ps->previous;
-                struct tree_node *index = expr(ps);
-                eat_error(ps, TOKEN_RSQUARE);
-                res = new_binary_node(res, op, index);
+        struct tree_node *res = id_expr(ps);
+        while (eat(ps, TOKEN_LPAREN) || eat(ps, TOKEN_LSQUARE)) {
+                struct token op = ps->previous;
+                switch (op.type) {
+                case TOKEN_LPAREN:
+                        res = new_binary_node(res, op, expr_list(ps));
+                        eat_error(ps, TOKEN_RPAREN);
+                        break;
+                case TOKEN_LSQUARE:
+                        res = new_binary_node(res, op, expr(ps));
+                        eat_error(ps, TOKEN_RSQUARE);
+                        break;
+                default:
+                        break;
+                }
         }
         return res;
 }
@@ -362,10 +462,9 @@ advance(struct parser *ps)
 static void
 synchronize(struct parser *ps)
 {
-        /* TODO: Synchronize on statement boundaries */
         ps->panic = 0;
         while (ps->current.type != TOKEN_EOF) {
-                if (ps->previous.type == TOKEN_SEMICOLON)
+                if (ps->current.type == TOKEN_SEMICOLON)
                         break;
                 advance(ps);
         }
@@ -388,6 +487,14 @@ new_tree_node_at_current(struct parser *ps, enum node_type type)
 {
         struct tree_node *node = new_tree_node(type);
         node->value = ps->current;
+        return node;
+}
+
+static struct tree_node *
+new_tree_node_at_previous(struct parser *ps, enum node_type type)
+{
+        struct tree_node *node = new_tree_node(type);
+        node->value = ps->previous;
         return node;
 }
 
@@ -458,12 +565,6 @@ error_at_current(struct parser *ps, char *msg)
         parse_error(ps, ps->current, msg);
 }
 
-static void
-error_at_previous(struct parser *ps, char *msg)
-{
-        parse_error(ps, ps->previous, msg);
-}
-
 char *
 node_type_string(enum node_type type)
 {
@@ -493,7 +594,6 @@ node_type_string(enum node_type type)
         case NODE_INTGER_CONST: return "NODE_INTGER_CONST";
         case NODE_LESSEQ_EXPR: return "NODE_LESSEQ_EXPR";
         case NODE_LESS_EXPR: return "NODE_LESS_EXPR";
-        case NODE_LHS: return "NODE_LHS";
         case NODE_MINUS_EXPR: return "NODE_MINUS_EXPR";
         case NODE_MODE_IN: return "NODE_MODE_IN";
         case NODE_MODE_INOUT: return "NODE_MODE_INOUT";
