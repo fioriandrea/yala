@@ -27,9 +27,7 @@ enum opcode {
 
         OP_NOT, /* boolean logic */
 
-        OP_SKIP, /* jumps */
-        OP_SKIPF,
-        OP_SKIP_LONG,
+        OP_SKIP_LONG, /* jumps */
         OP_SKIPF_LONG,
 
         OP_ZERO, /* constants */

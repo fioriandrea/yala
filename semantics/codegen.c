@@ -46,7 +46,7 @@ emit_code(struct bytecode *code, struct tree_node *root)
                 break;
         case NODE_OR_EXPR:
                 emit_code(code, root->left);
-                emit_two_bytes(code, root, OP_SKIPF, 3);
+                emit_three_bytes(code, root, OP_SKIPF_LONG, 0, 3);
                 emit_three_bytes(code, root, OP_SKIP_LONG, 0, 0);
                 codelen = bytes_len(&code->code);
                 emit_byte(code, root, OP_POPV);
@@ -284,8 +284,6 @@ opcodestring(enum opcode code)
         case OP_ILEQ: return "OP_ILEQ";
         case OP_EQUA: return "OP_EQUA";
         case OP_NOT: return "OP_NOT";
-        case OP_SKIP: return "OP_SKIP";
-        case OP_SKIPF: return "OP_SKIPF";
         case OP_SKIP_LONG: return "OP_SKIP_LONG";
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
         case OP_ZERO: return "OP_ZERO";
@@ -392,10 +390,6 @@ disassemble(struct bytecode *code)
                 case OP_LOCI:
                 case OP_LOCS:
                         ip = disassemble_constant(code, ip);
-                        break;
-                case OP_SKIP:
-                case OP_SKIPF:
-                        ip = disassemble_argument(code, ip);
                         break;
                 case OP_SKIP_LONG:
                 case OP_SKIPF_LONG:

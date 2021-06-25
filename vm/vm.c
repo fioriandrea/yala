@@ -132,17 +132,6 @@ vm_run(struct vm *vm)
         case OP_ONE:
                 pushv(vm, value_from_c_int(1));
                 break;
-        case OP_SKIP:
-                arg0 = advance_ip(vm);
-                vm->ip += arg0;
-                break;
-        case OP_SKIPF:
-                arg0 = advance_ip(vm);
-                val0 = peekv(vm, 1);
-                if (!val0.as.boolean) {
-                        vm->ip += arg0;
-                }
-                break;
         case OP_SKIP_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
