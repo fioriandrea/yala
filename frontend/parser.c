@@ -29,6 +29,8 @@ static void synchronize(struct parser *ps);
 struct tree_node *stat_list(struct parser *ps);
 struct tree_node *stat(struct parser *ps);
 struct tree_node *dispatch_id_stat(struct parser *ps);
+struct tree_node *assign_stat_trial(struct parser *ps, struct tree_node *lhs);
+struct tree_node *var_decl_stat_trial(struct parser *ps, struct tree_node *res);
 struct tree_node *id_list_empty(struct parser *ps);
 struct tree_node *type_label(struct parser *ps);
 struct tree_node *expr_stat(struct parser *ps);
@@ -103,24 +105,49 @@ dispatch_id_stat(struct parser *ps)
 {
         struct tree_node *res;
         res = expr(ps);
-        if (res->type != NODE_ID) {
+        switch (ps->current.type) {
+        case TOKEN_ASSIGN:
+                return assign_stat_trial(ps, res);
+        case TOKEN_COMMA:
+        case TOKEN_COLON:
+                return var_decl_stat_trial(ps, res);
+        default:
                 return res;
         }
-        if (check(ps, TOKEN_COLON) || check(ps, TOKEN_COMMA)) {
-                struct tree_node *tmp;
-                if (check(ps, TOKEN_COMMA))
-                        advance(ps);
-                tmp = id_list_empty(ps);
-                tmp->value = res->value;
-                res->next = tmp->child;
-                tmp->child = res;
-                res = tmp;
-                eat_error(ps, TOKEN_COLON);
-                tmp = new_tree_node_at_previous(ps, NODE_VAR_DECL);
-                tmp->left = res;
-                tmp->right = type_label(ps);
-                res = tmp;
+}
+
+struct tree_node *
+assign_stat_trial(struct parser *ps, struct tree_node *lhs)
+{
+        advance(ps);
+        if (lhs->type != NODE_INDEXING && lhs->type != NODE_ID) {
+                error_at_current(ps, "invalid assignment target");
+                return lhs;
         }
+        struct token eq = ps->previous;
+        return new_binary_node(lhs, eq, expr(ps));
+}
+
+struct tree_node *
+var_decl_stat_trial(struct parser *ps, struct tree_node *res)
+{
+        if (res->type != NODE_ID) {
+                error_at_current(ps, "invalid variable");
+                return res;
+        }
+        struct tree_node *tmp;
+        if (check(ps, TOKEN_COMMA))
+                advance(ps);
+        tmp = id_list_empty(ps);
+        tmp->value = res->value;
+        res->next = tmp->child;
+        tmp->child = res;
+        res = tmp;
+        eat_error(ps, TOKEN_COLON);
+        tmp = new_tree_node_at_previous(ps, NODE_VAR_DECL);
+        tmp->left = res;
+        tmp->right = type_label(ps);
+        res = tmp;
         return res;
 }
 
@@ -517,6 +544,7 @@ node_type token_to_bin_node_type(struct token op)
         case TOKEN_SLASH: return NODE_DIVIDE_EXPR;
         case TOKEN_LPAREN: return NODE_MODULE_CALL;
         case TOKEN_LSQUARE: return NODE_INDEXING;
+        case TOKEN_ASSIGN: return NODE_ASSIGN_STAT;
         default: return -1;
         }
 }
@@ -622,7 +650,7 @@ node_type_string(enum node_type type)
         case NODE_WRITELN_STAT: return "NODE_WRITELN_STAT";
         case NODE_WRITE_STAT: return "NODE_WRITE_STAT";
         }
-        return "unreachable return in nodetypestring";
+        return "unreachable return in node_type_string";
 }
 
 static void
