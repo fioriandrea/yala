@@ -143,8 +143,8 @@ patch_skip_long(struct bytecode *code, struct tree_node *root, int codelen)
         int jumplen;
         uint8_t jumplenfst, jumplenscn;
         jumplen = bytes_len(&code->code) - codelen;
-        if (jumplen > MAX_JUMP_LONG) {
-                codegen_error(code, root, "max jump size (%d) exceeded", MAX_JUMP_LONG);
+        if (jumplen > MAX_SKIP_LONG) {
+                codegen_error(code, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
                 return 0;
         }
         jumplenfst = (unsigned) jumplen >> 8;
