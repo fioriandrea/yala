@@ -332,7 +332,7 @@ eat_error(struct parser *ps, enum token_type type)
                         ps,
                         ps->current,
                         "expected %s, got %.*s",
-                        tokentypestring(type),
+                        token_type_string(type),
                         ps->current.length,
                         ps->current.start
                 );
@@ -465,7 +465,7 @@ error_at_previous(struct parser *ps, char *msg)
 }
 
 char *
-nodetypestring(enum node_type type)
+node_type_string(enum node_type type)
 {
         switch (type) {
         case NODE_AND_EXPR: return "NODE_AND_EXPR";
@@ -526,7 +526,7 @@ nodetypestring(enum node_type type)
 }
 
 static void
-treeprinthelper(struct tree_node *root, int level)
+tree_node_print_helper(struct tree_node *root, int level)
 {
         static char *tee = "├";
         static char *dash = "─";
@@ -543,22 +543,22 @@ treeprinthelper(struct tree_node *root, int level)
                 printf("%s%s%s ", tee, dash, dash);
         }
 
-        printf("%s ", nodetypestring(root->type));
+        printf("%s ", node_type_string(root->type));
         printf("[%.*s %d:%d]\n", root->value.length, root->value.start, root->value.line, root->value.linepos);
         /* right first for clarity in output for nested binary expressions */
-        treeprinthelper(root->right, level + 1);
-        treeprinthelper(root->left, level + 1);
+        tree_node_print_helper(root->right, level + 1);
+        tree_node_print_helper(root->left, level + 1);
         struct tree_node *child = root->child;
         while (child != NULL) {
-                treeprinthelper(child, level + 1);
+                tree_node_print_helper(child, level + 1);
                 child = child->next;
         }
 }
 
 void
-treeprint(struct tree_node *root)
+tree_node_print(struct tree_node *root)
 {
-        treeprinthelper(root, 0);
+        tree_node_print_helper(root, 0);
 }
 
 void

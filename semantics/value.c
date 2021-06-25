@@ -3,7 +3,7 @@
 #include "semantics.h"
 
 void
-print_value(struct value v)
+value_print(struct value v)
 {
         switch (v.type) {
         case VAL_INTEGER:

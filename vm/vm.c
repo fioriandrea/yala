@@ -139,7 +139,7 @@ vm_run(struct vm *vm)
         case OP_HALT:
                 val0 = popv(vm);
                 printf("HALT: ");
-                print_value(val0);
+                value_print(val0);
                 printf("\n");
                 return 0;
         default:

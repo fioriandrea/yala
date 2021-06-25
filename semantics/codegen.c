@@ -127,7 +127,7 @@ emit_code(struct bytecode *code, struct tree_node *root)
                 emit_constant(code, root, value_from_c_int(parse_integer_token(root->value)));
                 break;
         default:
-                codegen_error(code, root, "code generation for node not implemented (%s)", nodetypestring(root->type));
+                codegen_error(code, root, "code generation for node not implemented (%s)", node_type_string(root->type));
         }
 }
 
@@ -275,7 +275,7 @@ disassemble_constant(struct bytecode *code, int ip)
 {
         uint8_t constantaddr = bytes_at(&code->code, ip);
         struct value val = valuelist_at(&code->constants, constantaddr);
-        print_value(val);
+        value_print(val);
         printf(" ");
         return ip + 1;
 }

@@ -77,7 +77,7 @@ struct lexer {
 
 void lexer_init(struct lexer *lexer, char *program, int programlength);
 struct token next_token(struct lexer *lexer);
-char *tokentypestring(enum token_type type);
+char *token_type_string(enum token_type type);
 
 enum node_type {
         NODE_AND_EXPR,
@@ -144,10 +144,9 @@ struct tree_node {
         struct tree_node *child;
 };
 
-void treeprint(struct tree_node *root);
+void tree_node_print(struct tree_node *root);
 struct tree_node *parse(char *program, int programlen);
 void tree_node_free(struct tree_node *root);
-char *nodetypestring(enum node_type type);
-char *treenodestring(struct tree_node *node);
+char *node_type_string(enum node_type type);
 
 #endif

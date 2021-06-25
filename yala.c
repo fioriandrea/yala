@@ -70,7 +70,7 @@ main(int argc, char **argv)
         root = parse(programtext, proglen);
         if (!root)
                 exit(1);
-        treeprint(root);
+        tree_node_print(root);
 
         analyze_semantics(&semanticsres, root);
         if (!semanticsres)

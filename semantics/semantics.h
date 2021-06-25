@@ -51,7 +51,7 @@ struct value {
         } as;
 };
 
-void print_value(struct value v);
+void value_print(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
 int values_equal(struct value val0, struct value val1);

@@ -233,7 +233,7 @@ next_token(struct lexer *lexer)
 }
 
 char *
-tokentypestring(enum token_type type)
+token_type_string(enum token_type type)
 {
         switch (type) {
         case TOKEN_AND: return "TOKEN_AND";
@@ -292,5 +292,5 @@ tokentypestring(enum token_type type)
         case TOKEN_WRITE: return "TOKEN_WRITE";
         case TOKEN_WRITELN: return "TOKEN_WRITELN";
         }
-        return "unreachable return in tokentypestring";
+        return "unreachable return in token_type_string";
 }

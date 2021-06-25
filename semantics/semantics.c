@@ -83,7 +83,7 @@ analyze_semantics(int *result, struct tree_node *root)
         case NODE_INTGER_CONST:
                 return inttype;
         default:
-                semantics_error(result, root, "semantic analysis for node not implemented (%s)", nodetypestring(root->type));
+                semantics_error(result, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
         }
         return inttype;
 }
