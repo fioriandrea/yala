@@ -72,6 +72,7 @@ main(int argc, char **argv)
                 exit(1);
         tree_node_print(root);
 
+        semanticsres = 1;
         analyze_semantics(&semanticsres, root);
         if (!semanticsres)
                 exit(1);

@@ -8,7 +8,6 @@ static void semantics_error(int *result, struct tree_node *root, char *fmt, ...)
 struct expr_type
 analyze_semantics(int *result, struct tree_node *root)
 {
-        *result = 1;
         struct tree_node *child;
         struct expr_type lefttype, righttype, childtype0, childtype1;
         struct expr_type inttype, booltype;
@@ -71,11 +70,13 @@ analyze_semantics(int *result, struct tree_node *root)
                 }
                 child = child->next;
                 childtype0 = analyze_semantics(result, child);
+                child = child->next;
                 while (child != NULL) {
                         childtype1 = analyze_semantics(result, child);
                         if (childtype0.type != childtype1.type) {
                                 semantics_error(result, child, "conditional expression types must be the same");
                         }
+                        child = child->next;
                 }
                 return childtype0;
         case NODE_BOOLEAN_CONST:
