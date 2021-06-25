@@ -16,13 +16,13 @@ advance_ip(struct vm *vm)
 }
 
 static void
-push(struct vm *vm, struct value val)
+pushv(struct vm *vm, struct value val)
 {
         *vm->sp++ = val;
 }
 
 static struct value
-pop(struct vm *vm)
+popv(struct vm *vm)
 {
         return *--vm->sp;
 }
@@ -40,33 +40,33 @@ vm_run(struct vm *vm)
         switch (current) {
         case OP_LOCI:
                 constaddr = advance_ip(vm);
-                push(vm, bytecode_constant_at(vm->code, constaddr));
+                pushv(vm, bytecode_constant_at(vm->code, constaddr));
                 break;
         case OP_ADDI:
-                val1 = pop(vm);
-                val0 = pop(vm);
-                push(vm, value_from_c_int(val0.as.integer + val1.as.integer));
+                val1 = popv(vm);
+                val0 = popv(vm);
+                pushv(vm, value_from_c_int(val0.as.integer + val1.as.integer));
                 break;
         case OP_SUBI:
-                val1 = pop(vm);
-                val0 = pop(vm);
-                push(vm, value_from_c_int(val0.as.integer - val1.as.integer));
+                val1 = popv(vm);
+                val0 = popv(vm);
+                pushv(vm, value_from_c_int(val0.as.integer - val1.as.integer));
                 break;
         case OP_MULI:
-                val1 = pop(vm);
-                val0 = pop(vm);
-                push(vm, value_from_c_int(val0.as.integer * val1.as.integer));
+                val1 = popv(vm);
+                val0 = popv(vm);
+                pushv(vm, value_from_c_int(val0.as.integer * val1.as.integer));
                 break;
         case OP_DIVI:
-                val1 = pop(vm);
-                val0 = pop(vm);
-                push(vm, value_from_c_int(val0.as.integer / val1.as.integer));
+                val1 = popv(vm);
+                val0 = popv(vm);
+                pushv(vm, value_from_c_int(val0.as.integer / val1.as.integer));
                 break;
         case OP_ZERO:
-                push(vm, value_from_c_int(0));
+                pushv(vm, value_from_c_int(0));
                 break;
         case OP_HALT:
-                val0 = pop(vm);
+                val0 = popv(vm);
                 printf("HALT: ");
                 print_value(val0);
                 printf("\n");
