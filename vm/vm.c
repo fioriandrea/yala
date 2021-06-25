@@ -1,4 +1,6 @@
+#include <stdarg.h>
 #include <stdio.h>
+
 #include "vm.h"
 
 void
@@ -31,6 +33,19 @@ static struct value
 peekv(struct vm *vm, int offset)
 {
         return *(vm->sp - offset);
+}
+
+static void
+runtime_error(struct vm *vm, uint8_t pos, char *fmt, ...)
+{
+        va_list args;
+        va_start(args, fmt);
+        struct lineinfo linfo = linelist_at(&vm->code->lines, pos);
+        fprintf(stderr, "runtime error ");
+        fprintf(stderr, "[at %d:%d]: ", linfo.line, linfo.linepos);
+        vfprintf(stderr, fmt, args);
+        fprintf(stderr, "\n");
+        va_end(args);
 }
 
 int
@@ -66,6 +81,10 @@ vm_run(struct vm *vm)
         case OP_DIVI:
                 val1 = popv(vm);
                 val0 = popv(vm);
+                if (val1.as.integer == 0) {
+                        runtime_error(vm, vm->ip - 1, "division by 0");
+                        return 0;
+                }
                 pushv(vm, value_from_c_int(val0.as.integer / val1.as.integer));
                 break;
         case OP_IGRT:
@@ -123,11 +142,9 @@ vm_run(struct vm *vm)
                 print_value(val0);
                 printf("\n");
                 return 0;
-                break;
         default:
-                printf("NOT IMPLEMENTED: %s\n", opcodestring(current));
-                return 1;
-                break;
+                runtime_error(vm, vm->ip - 1, "NOT IMPLEMENTED: %s\n", opcodestring(current));
+                return 0;
         }
         }
 }
