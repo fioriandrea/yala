@@ -28,7 +28,7 @@
                 int (*hash)(keytype, int); \
                 int (*keyequal)(keytype, keytype); \
         }; \
-        void name##_init(struct name *table, int (*hash)(keytype), int (*keyequal)(keytype, keytype)); \
+        void name##_init(struct name *table, int (*hash)(keytype, int), int (*keyequal)(keytype, keytype)); \
         struct name##_table_node *name##_node_get(struct name *table, keytype key); \
         int name##_has(struct name *table, keytype key); \
         valtype name##_get(struct name *table, keytype key); \
