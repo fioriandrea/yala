@@ -150,11 +150,28 @@ vm_run(struct vm *vm)
         case OP_POPV:
                 popv(vm);
                 break;
-        case OP_HALT:
-                val0 = popv(vm);
-                printf("HALT: ");
-                value_print(val0);
+        case OP_NEWLINE:
                 printf("\n");
+                break;
+        case OP_WRITE:
+                arg0 = advance_ip(vm);
+                for (int i = 0; i < arg0; i++) {
+                        value_print(popv(vm));
+                }
+                break;
+        case OP_GET_LOCAL_LONG:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                pushv(vm, vm->stack[arglong0]);
+                break;
+        case OP_SET_LOCAL_LONG:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                vm->stack[arglong0] = popv(vm);
+                break;
+        case OP_HALT:
                 return 0;
         default:
                 runtime_error(vm, vm->ip - 1, "NOT IMPLEMENTED: %s\n", opcodestring(current));

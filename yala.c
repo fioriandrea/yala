@@ -56,7 +56,6 @@ main(int argc, char **argv)
         char *programtext;
         int proglen;
         struct tree_node *root;
-        int semanticsres;
         struct bytecode *code;
         struct vm vm;
 
@@ -72,14 +71,10 @@ main(int argc, char **argv)
                 exit(1);
         tree_node_print(root);
 
-        semanticsres = 1;
-        analyze_semantics(&semanticsres, root);
-        if (!semanticsres)
+        code = generate_bytecode(root);
+        if (code == NULL)
                 exit(1);
 
-        code = generate_bytecode(root);
-        if (!code)
-                exit(1);
         disassemble(code);
 
         vm_init(&vm, code);
@@ -87,6 +82,7 @@ main(int argc, char **argv)
 
         tree_node_free(root);
         bytecode_free(code);
+        free(code);
         free(programtext);
         return 0;
 }

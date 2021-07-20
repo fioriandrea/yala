@@ -1,6 +1,147 @@
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "semantics.h"
+#include "./semantics.h"
+
+/* list */
+
+#define LIST_DECLARE(name, type) \
+        struct name \
+        { \
+                int len; \
+                int cap; \
+                type *buffer; \
+        }; \
+        void name##_init(struct name *list); \
+        int name##_push(struct name *list, type data); \
+        type name##_pop(struct name *list); \
+        type name##_at(struct name *list, int i); \
+        int name##_len(struct name *list); \
+        void name##_free(struct name *list);
+
+#define LIST_DEFINE(name, type) \
+        LIST_INIT(name, type) \
+        LIST_PUSH(name, type) \
+        LIST_POP(name, type) \
+        LIST_AT(name, type) \
+        LIST_LEN(name, type) \
+        LIST_FREE(name, type)
+
+#define NEW_ARRAY_CAP(cap) ((cap) < 8 ? 8 : (cap) * 2)
+
+#define GROW_ARRAY(type, buffer, oldcap, newcap) \
+        ((type *) grow_array((void *) (buffer), oldcap, newcap, sizeof(type)))
+
+#define LIST_INIT(name, type) \
+        void name##_init(struct name *list) \
+        { \
+                list->len = list->cap = 0; \
+                list->buffer = NULL; \
+        } \
+
+#define LIST_PUSH(name, type) \
+        int name##_push(struct name *list, type data) \
+        { \
+                if (list->len + 1 > list->cap) { \
+                        int newcap = NEW_ARRAY_CAP(list->cap); \
+                        list->buffer = GROW_ARRAY(type, list->buffer, list->cap, newcap); \
+                        list->cap = newcap; \
+                } \
+                list->buffer[list->len++] = data; \
+                return list->len; \
+        }
+
+#define LIST_POP(name, type) \
+        type name##_pop(struct name *list) \
+        { \
+                return list->buffer[--list->len]; \
+        }
+
+#define LIST_AT(name, type) \
+        type name##_at(struct name *list, int i) \
+        { \
+                return list->buffer[i]; \
+        }
+
+#define LIST_LEN(name, type) \
+        int name##_len(struct name *list) \
+        { \
+                return list->len; \
+        }
+
+#define LIST_FREE(name, type) \
+        void name##_free(struct name *list) \
+        { \
+                list->buffer = GROW_ARRAY(type, list->buffer, list->cap, 0); \
+        }
+
+static void *
+grow_array(void *buffer, int oldcap, int newcap, size_t size)
+{
+        if (newcap == 0 && buffer != NULL) {
+                free(buffer);
+                return NULL;
+        } else if (oldcap == 0) {
+                return malloc(size * newcap);
+        } else {
+                return realloc(buffer, size * newcap);
+        }
+}
+
+LIST_DEFINE(bytes, uint8_t)
+LIST_DEFINE(linelist, struct lineinfo)
+LIST_DEFINE(valuelist, struct value)
+
+void
+bytecode_init(struct bytecode *code)
+{
+        bytes_init(&code->code);
+        linelist_init(&code->lines);
+        valuelist_init(&code->constants);
+}
+
+int
+bytecode_write_byte(struct bytecode *code, uint8_t byte, struct lineinfo linfo)
+{
+        linelist_push(&code->lines, linfo);
+        return bytes_push(&code->code, byte);
+}
+
+int
+bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo)
+{
+        int addr = valuelist_push(&code->constants, val) - 1;
+        return bytecode_write_byte(code, addr, linfo);
+}
+
+uint8_t
+bytecode_byte_at(struct bytecode *code, int i)
+{
+        return bytes_at(&code->code, i);
+}
+
+struct lineinfo
+bytecode_lineinfo_at(struct bytecode *code, int i)
+{
+        return linelist_at(&code->lines, i);
+}
+
+struct value
+bytecode_constant_at(struct bytecode *code, uint8_t address)
+{
+        return valuelist_at(&code->constants, address);
+}
+
+void
+bytecode_free(struct bytecode *code)
+{
+        if (!code)
+                return;
+        bytes_free(&code->code);
+        linelist_free(&code->lines);
+        valuelist_free(&code->constants);
+}
 
 void
 value_print(struct value v)

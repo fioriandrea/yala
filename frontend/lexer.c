@@ -294,3 +294,15 @@ token_type_string(enum token_type type)
         }
         return "unreachable return in token_type_string";
 }
+
+int
+token_equal(struct token t0, struct token t1)
+{
+        if (t0.length != t1.length)
+                return 0;
+        for (int i = 0; i < t0.length; i++) {
+                if (t0.start[i] != t1.start[i])
+                        return 0;
+        }
+        return 1;
+}

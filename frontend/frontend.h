@@ -78,6 +78,7 @@ struct lexer {
 void lexer_init(struct lexer *lexer, char *program, int programlength);
 struct token next_token(struct lexer *lexer);
 char *token_type_string(enum token_type type);
+int token_equal(struct token t0, struct token t1);
 
 enum node_type {
         NODE_AND_EXPR,
@@ -92,6 +93,7 @@ enum node_type {
         NODE_EXIT_STAT,
         NODE_EXPR_BODY,
         NODE_EXPR_LIST,
+        NODE_EXPR_STAT,
         NODE_FORMAL_DECL,
         NODE_FOR_STAT,
         NODE_FUNCTION_DECL,

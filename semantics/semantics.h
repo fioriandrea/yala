@@ -3,12 +3,12 @@
 
 #include <stdint.h>
 
-#include "../datastructs/datastructs.h"
 #include "../frontend/frontend.h"
 
 #define MAX_JUMP UINT8_MAX
 #define MAX_SKIP_LONG UINT16_MAX
 #define MAX_CONDITIONAL_LEN 400
+#define MAX_ARITY UINT8_MAX
 
 enum opcode {
         OP_LOCI, /* constants */
@@ -35,6 +35,12 @@ enum opcode {
 
         OP_POPV, /* value stack manipulation */
 
+        OP_GET_LOCAL_LONG,
+        OP_SET_LOCAL_LONG,
+
+        OP_WRITE,
+        OP_NEWLINE,
+
         OP_HALT,
 };
 
@@ -43,6 +49,12 @@ char *opcodestring(enum opcode code);
 enum value_type {
         VAL_INTEGER,
         VAL_BOOLEAN,
+        VAL_STRING,
+};
+
+struct value_string {
+        char *str;
+        int length;
 };
 
 struct value {
@@ -50,12 +62,14 @@ struct value {
         union {
                 int integer;
                 int boolean;
+                struct value_string string;
         } as;
 };
 
 void value_print(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
+// TODO value_from_c_string
 int values_equal(struct value val0, struct value val1);
 
 struct lineinfo {
@@ -63,17 +77,30 @@ struct lineinfo {
         int linepos;
 };
 
+#define MAX_CONSTANTS UINT8_MAX
+
+#define LIST_DECLARE(name, type) \
+        struct name \
+        { \
+                int len; \
+                int cap; \
+                type *buffer; \
+        }; \
+        void name##_init(struct name *list); \
+        int name##_push(struct name *list, type data); \
+        type name##_pop(struct name *list); \
+        type name##_at(struct name *list, int i); \
+        int name##_len(struct name *list); \
+        void name##_free(struct name *list);
+
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
 LIST_DECLARE(valuelist, struct value)
-
-#define MAX_CONSTANTS UINT8_MAX
 
 struct bytecode {
         struct bytes code;
         struct linelist lines;
         struct valuelist constants;
-        int error_detected;
 };
 
 void bytecode_init(struct bytecode *code);
@@ -87,15 +114,37 @@ void disassemble(struct bytecode *code);
 
 struct bytecode *generate_bytecode(struct tree_node *parsetree);
 
-enum expr_type_type {
+enum type_type {
         TYPE_INTEGER,
         TYPE_BOOLEAN,
+        TYPE_STRING,
 };
 
-struct expr_type {
-        enum expr_type_type type;
+struct type {
+        enum type_type type;
+        union {
+        } additional;
 };
 
-struct expr_type analyze_semantics(int *result, struct tree_node *root);
+struct local {
+        struct token name;
+        struct type type;
+};
+
+#define MAX_LOCALS 200
+
+struct environment {
+        struct bytecode *code;
+        struct local locals[MAX_LOCALS];
+        int count;
+        int error;
+};
+
+void environment_init(struct environment *env, struct bytecode *code);
+void environment_declare_local(struct environment *env, struct tree_node *current, struct type type);
+int environment_local_get(struct environment *env, struct token name, struct local *local);
+
+void emit_statement(struct environment *env, struct tree_node *root);
+struct type emit_expression(struct environment *env, struct tree_node *root);
 
 #endif

@@ -26,14 +26,16 @@ static int eat(struct parser *ps, enum token_type type);
 static int eat_error(struct parser *ps, enum token_type type);
 static void synchronize(struct parser *ps);
 
-struct tree_node *stat_list(struct parser *ps);
-struct tree_node *stat(struct parser *ps);
-struct tree_node *dispatch_id_stat(struct parser *ps);
-struct tree_node *assign_stat_trial(struct parser *ps, struct tree_node *lhs);
-struct tree_node *var_decl_stat_trial(struct parser *ps, struct tree_node *res);
-struct tree_node *id_list_empty(struct parser *ps);
-struct tree_node *type_label(struct parser *ps);
-struct tree_node *expr_stat(struct parser *ps);
+static struct tree_node *stat_list(struct parser *ps);
+static struct tree_node *stat(struct parser *ps);
+static struct tree_node *write_stat(struct parser *ps);
+static struct tree_node *writeln_stat(struct parser *ps);
+static struct tree_node *dispatch_id_stat(struct parser *ps);
+static struct tree_node *assign_stat_trial(struct parser *ps, struct tree_node *lhs);
+static struct tree_node *var_decl_stat_trial(struct parser *ps, struct tree_node *res);
+static struct tree_node *id_list_empty(struct parser *ps);
+static struct tree_node *type_label(struct parser *ps);
+static struct tree_node *expr_stat(struct parser *ps);
 
 static struct tree_node *expr(struct parser *ps);
 static struct tree_node *boolean_expr(struct parser *ps);
@@ -73,7 +75,7 @@ parse(char *program, int programlen)
         return res;
 }
 
-struct tree_node *
+static struct tree_node *
 stat_list(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_STAT_LIST);
@@ -89,18 +91,54 @@ stat_list(struct parser *ps)
         return res;
 }
 
-struct tree_node *
+static struct tree_node *
 stat(struct parser *ps)
 {
         switch (ps->current.type) {
         case TOKEN_ID:
                 return dispatch_id_stat(ps);
+        case TOKEN_WRITE:
+                return write_stat(ps);
+        case TOKEN_WRITELN:
+                return writeln_stat(ps);
         default:
                 return expr_stat(ps);
         }
 }
 
-struct tree_node *
+static struct tree_node *
+write_stat(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_WRITE_STAT);
+        eat(ps, TOKEN_WRITE);
+        eat_error(ps, TOKEN_LPAREN);
+        res->child = expr_list(ps);
+        eat_error(ps, TOKEN_RPAREN);
+        return res;
+}
+
+static struct tree_node *
+writeln_stat(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_WRITELN_STAT);
+        eat(ps, TOKEN_WRITELN);
+        eat_error(ps, TOKEN_LPAREN);
+        res->child = expr_list(ps);
+        eat_error(ps, TOKEN_RPAREN);
+        return res;
+}
+
+static struct tree_node *
+wrap_expr_in_statement(struct tree_node *exprnode)
+{
+        struct tree_node *node = new_tree_node(NODE_EXPR_STAT);
+        node->child = exprnode;
+        if (node->child)
+                node->value = node->child->value;
+        return node;
+}
+
+static struct tree_node *
 dispatch_id_stat(struct parser *ps)
 {
         struct tree_node *res;
@@ -112,11 +150,11 @@ dispatch_id_stat(struct parser *ps)
         case TOKEN_COLON:
                 return var_decl_stat_trial(ps, res);
         default:
-                return res;
+                return wrap_expr_in_statement(res);
         }
 }
 
-struct tree_node *
+static struct tree_node *
 assign_stat_trial(struct parser *ps, struct tree_node *lhs)
 {
         advance(ps);
@@ -128,7 +166,7 @@ assign_stat_trial(struct parser *ps, struct tree_node *lhs)
         return new_binary_node(lhs, eq, expr(ps));
 }
 
-struct tree_node *
+static struct tree_node *
 var_decl_stat_trial(struct parser *ps, struct tree_node *res)
 {
         if (res->type != NODE_ID) {
@@ -151,7 +189,7 @@ var_decl_stat_trial(struct parser *ps, struct tree_node *res)
         return res;
 }
 
-struct tree_node *
+static struct tree_node *
 id_list_empty(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_ID_LIST);
@@ -164,7 +202,7 @@ id_list_empty(struct parser *ps)
         return res;
 }
 
-struct tree_node *
+static struct tree_node *
 type_label(struct parser *ps)
 { 
         advance(ps);
@@ -181,15 +219,15 @@ type_label(struct parser *ps)
         }
 }
 
-struct tree_node *
+static struct tree_node *
 expr_stat(struct parser *ps)
 {
-        return expr(ps);
+        return wrap_expr_in_statement(expr(ps));
 }
 
 /* expressions */
 
-struct tree_node *
+static struct tree_node *
 expr(struct parser *ps)
 {
         return boolean_expr(ps);
@@ -609,6 +647,7 @@ node_type_string(enum node_type type)
         case NODE_EXIT_STAT: return "NODE_EXIT_STAT";
         case NODE_EXPR_BODY: return "NODE_EXPR_BODY";
         case NODE_EXPR_LIST: return "NODE_EXPR_LIST";
+        case NODE_EXPR_STAT: return "NODE_EXPR_STAT";
         case NODE_FORMAL_DECL: return "NODE_FORMAL_DECL";
         case NODE_FOR_STAT: return "NODE_FOR_STAT";
         case NODE_FUNCTION_DECL: return "NODE_FUNCTION_DECL";
