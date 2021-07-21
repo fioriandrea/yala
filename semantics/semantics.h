@@ -126,23 +126,21 @@ struct type {
         } additional;
 };
 
+#define MAX_LOCALS 200
+
 struct local {
         struct token name;
         struct type type;
+        int depth;
 };
-
-#define MAX_LOCALS 200
 
 struct environment {
         struct bytecode *code;
         struct local locals[MAX_LOCALS];
+        int depth;
         int count;
         int error;
 };
-
-void environment_init(struct environment *env, struct bytecode *code);
-void environment_declare_local(struct environment *env, struct tree_node *current, struct type type);
-int environment_local_get(struct environment *env, struct token name, struct local *local);
 
 void emit_statement(struct environment *env, struct tree_node *root);
 struct type emit_expression(struct environment *env, struct tree_node *root);

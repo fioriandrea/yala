@@ -167,39 +167,21 @@ if_stat(struct parser *ps)
         static enum token_type stat_list_ends[] = {TOKEN_ELSIF, TOKEN_ELSE, TOKEN_END};
         static int ntypes = sizeof(stat_list_ends) / sizeof(stat_list_ends[0]);
         struct tree_node *res = new_tree_node_at_current(ps, NODE_IF_STAT);
-        advance(ps);
         struct tree_node **child = &res->child;
-        *child = expr(ps);
-        child = &(*child)->next;
-        eat_error(ps, TOKEN_THEN);
-        *child = stat_list_until_list(ps, ntypes, stat_list_ends);
-        child = &(*child)->next;
-        if (check(ps, TOKEN_ELSIF)) {
-                *child = elsif_stat_list(ps);
+        do {
+                advance(ps);
+                *child = new_tree_node_at_previous(ps, NODE_CONDITION_AND_STATEMENT);
+                (*child)->left = expr(ps);
+                eat_error(ps, TOKEN_THEN);
+                (*child)->right = stat_list_until_list(ps, ntypes, stat_list_ends);
                 child = &(*child)->next;
-        }
+        } while (check(ps, TOKEN_ELSIF));
         if (check(ps, TOKEN_ELSE)) {
-                *child = stat_list_until_list(ps, ntypes, stat_list_ends);
+                advance(ps);
+                *child= stat_list_until_list(ps, ntypes, stat_list_ends);
                 child = &(*child)->next;
         }
         eat_error(ps, TOKEN_END);
-        return res;
-}
-
-static struct tree_node *
-elsif_stat_list(struct parser *ps)
-{
-        static enum token_type stat_list_ends[] = {TOKEN_ELSIF, TOKEN_ELSE, TOKEN_END};
-        static int ntypes = sizeof(stat_list_ends) / sizeof(stat_list_ends[0]);
-        struct tree_node *res = new_tree_node_at_current(ps, NODE_ELSIF_STAT_LIST);
-        struct tree_node **child = &res->child;
-        while (eat(ps, TOKEN_ELSIF)) {
-                *child = expr(ps);
-                child = &(*child)->next;
-                eat_error(ps, TOKEN_THEN);
-                *child = stat_list_until_list(ps, ntypes, stat_list_ends);
-                child = &(*child)->next;
-        }
         return res;
 }
 
@@ -700,6 +682,7 @@ char *
 node_type_string(enum node_type type)
 {
         switch (type) {
+        case NODE_CONDITION_AND_STATEMENT: return "NODE_CONDITION_AND_STATEMENT";
         case NODE_AND_EXPR: return "NODE_AND_EXPR";
         case NODE_ASSIGN_STAT: return "NODE_ASSIGN_STAT";
         case NODE_BOOLEAN_CONST: return "NODE_BOOLEAN_CONST";
@@ -708,7 +691,6 @@ node_type_string(enum node_type type)
         case NODE_COND_EXPR: return "NODE_COND_EXPR";
         case NODE_DIVIDE_EXPR: return "NODE_DIVIDE_EXPR";
         case NODE_ELSIF_EXPR_LIST: return "NODE_ELSIF_EXPR_LIST";
-        case NODE_ELSIF_STAT_LIST: return "NODE_ELSIF_STAT_LIST";
         case NODE_EQ_EXPR: return "NODE_EQ_EXPR";
         case NODE_EXIT_STAT: return "NODE_EXIT_STAT";
         case NODE_EXPR_BODY: return "NODE_EXPR_BODY";

@@ -220,12 +220,43 @@ type_node_to_type(struct tree_node *node)
         return type;
 }
 
-void
+static void
 environment_init(struct environment *env, struct bytecode *code)
 {
         env->code = code;
         env->count = 0;
         env->error = 0;
+        env->depth = 0;
+}
+
+static int
+environment_local_get(struct environment *env, struct token name, struct local *local)
+{
+        int i;
+        for (i = env->count - 1; i >= 0; i--) {
+                if (token_equal(env->locals[i].name, name)) {
+                        if (local != NULL)
+                                *local = env->locals[i];
+                        break;
+                }
+        }
+        return i;
+}
+
+static void
+emit_push_scope(struct environment *env, struct tree_node *node)
+{
+        env->depth++;
+}
+
+static void
+emit_pop_scope(struct environment *env, struct tree_node *node)
+{
+        while (env->count > 0 && env->locals[env->count - 1].depth == env->depth) {
+                env->count--;
+                emit_byte(env, node, OP_POPV);
+        }
+        env->depth--;
 }
 
 static void
@@ -243,7 +274,7 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct ty
         }
 }
 
-void
+static void
 emit_declare_local(struct environment *env, struct tree_node *current, struct type type)
 {
         if (env->count == MAX_LOCALS) {
@@ -260,18 +291,42 @@ emit_declare_local(struct environment *env, struct tree_node *current, struct ty
         env->count++;
 }
 
-int
-environment_local_get(struct environment *env, struct token name, struct local *local)
+static void
+emit_if_statement(struct environment *env, struct tree_node *root)
 {
-        int i;
-        for (i = env->count - 1; i >= 0; i--) {
-                if (token_equal(env->locals[i].name, name)) {
-                        if (local != NULL)
-                                *local = env->locals[i];
-                        break;
+        int toendlens[MAX_CONDITIONAL_LEN];
+        int codelen, *toendp;
+        toendp = toendlens;
+        struct tree_node *child, *subchild;
+        struct type type1;
+        struct bytecode *code = env->code;
+        child = root->child;
+        while (child != NULL && child->type == NODE_CONDITION_AND_STATEMENT) {
+                type1 = emit_expression(env, child->left);
+                if (type1.type != TYPE_BOOLEAN) {
+                        semantics_error(env, child->left, "if condition must be boolean");
+                        return;
                 }
+                emit_three_bytes(env, child->left, OP_SKIPF_LONG, 0, 0);
+                codelen = bytes_len(&code->code);
+                emit_byte(env, child->left, OP_POPV);
+                emit_statement(env, child->right);
+                emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
+                if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
+                        semantics_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
+                        return;
+                }
+                *toendp++ = bytes_len(&code->code);
+                patch_skip_long(env, child, codelen);
+                emit_byte(env, child, OP_POPV);
+                child = child->next;
         }
-        return i;
+        if (child != NULL)
+                emit_statement(env, child);
+        while (toendp > toendlens) {
+                if (!patch_skip_long(env, root, *--toendp))
+                        return;
+        }
 }
 
 void
@@ -283,11 +338,13 @@ emit_statement(struct environment *env, struct tree_node *root)
         int localindex, count;
         switch (root->type) {
         case NODE_STAT_LIST:
+                emit_push_scope(env, root);
                 node = root->child;
                 while (node != NULL) {
                         emit_statement(env, node);
                         node = node->next;
                 }
+                emit_pop_scope(env, root);
                 return;
         case NODE_VAR_DECL:
                 node = root->left->child;
@@ -336,6 +393,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                         semantics_error(env, root, "mismatching types in assignment");
                 }
                 emit_three_bytes(env, root, OP_SET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
+                return;
+        case NODE_IF_STAT:
+                emit_if_statement(env, root);
                 return;
         case NODE_EXPR_STAT:
                 emit_expression(env, root->child);
