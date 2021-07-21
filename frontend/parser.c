@@ -31,7 +31,6 @@ static struct tree_node *stat(struct parser *ps);
 static struct tree_node *write_stat(struct parser *ps);
 static struct tree_node *writeln_stat(struct parser *ps);
 static struct tree_node *if_stat(struct parser *ps);
-static struct tree_node *elsif_stat_list(struct parser *ps);
 static struct tree_node *dispatch_id_stat(struct parser *ps);
 static struct tree_node *assign_stat_trial(struct parser *ps, struct tree_node *lhs);
 static struct tree_node *var_decl_stat_trial(struct parser *ps, struct tree_node *res);
@@ -54,7 +53,6 @@ static struct tree_node *const_list(struct parser *ps);
 static struct tree_node *boolean_const(struct parser *ps);
 static struct tree_node *grouping_expr(struct parser *ps);
 static struct tree_node *conditional_expr(struct parser *ps);
-static struct tree_node *elsif_expr_list(struct parser *ps);
 struct tree_node *id_expr(struct parser *ps);
 static struct tree_node *dispatch_id_expr(struct parser *ps);
 static struct tree_node *expr_list(struct parser *ps);
@@ -450,36 +448,19 @@ static struct tree_node *
 conditional_expr(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_COND_EXPR);
-        advance(ps);
         struct tree_node **child = &res->child;
-        *child = expr(ps);
-        child = &(*child)->next;
-        eat_error(ps, TOKEN_THEN);
-        *child = expr(ps);
-        child = &(*child)->next;
-        if (check(ps, TOKEN_ELSIF)) {
-                *child = elsif_expr_list(ps);
+        do {
+                advance(ps);
+                *child = new_tree_node_at_previous(ps, NODE_CONDITION_AND_EXPRESSION);
+                (*child)->left = expr(ps);
+                eat_error(ps, TOKEN_THEN);
+                (*child)->right = expr(ps);
                 child = &(*child)->next;
-        }
+        } while (check(ps, TOKEN_ELSIF));
         eat_error(ps, TOKEN_ELSE);
         *child = expr(ps);
         child = &(*child)->next;
         eat_error(ps, TOKEN_END);
-        return res;
-}
-
-static struct tree_node *
-elsif_expr_list(struct parser *ps)
-{
-        struct tree_node *res = new_tree_node_at_current(ps, NODE_ELSIF_EXPR_LIST);
-        struct tree_node **child = &res->child;
-        while (eat(ps, TOKEN_ELSIF)) {
-                *child = expr(ps);
-                child = &(*child)->next;
-                eat_error(ps, TOKEN_THEN);
-                *child = expr(ps);
-                child = &(*child)->next;
-        }
         return res;
 }
 
@@ -683,6 +664,7 @@ node_type_string(enum node_type type)
 {
         switch (type) {
         case NODE_CONDITION_AND_STATEMENT: return "NODE_CONDITION_AND_STATEMENT";
+        case NODE_CONDITION_AND_EXPRESSION: return "NODE_CONDITION_AND_STATEMENT";
         case NODE_AND_EXPR: return "NODE_AND_EXPR";
         case NODE_ASSIGN_STAT: return "NODE_ASSIGN_STAT";
         case NODE_BOOLEAN_CONST: return "NODE_BOOLEAN_CONST";
@@ -690,7 +672,6 @@ node_type_string(enum node_type type)
         case NODE_BREAK_STAT: return "NODE_BREAK_STAT";
         case NODE_COND_EXPR: return "NODE_COND_EXPR";
         case NODE_DIVIDE_EXPR: return "NODE_DIVIDE_EXPR";
-        case NODE_ELSIF_EXPR_LIST: return "NODE_ELSIF_EXPR_LIST";
         case NODE_EQ_EXPR: return "NODE_EQ_EXPR";
         case NODE_EXIT_STAT: return "NODE_EXIT_STAT";
         case NODE_EXPR_BODY: return "NODE_EXPR_BODY";

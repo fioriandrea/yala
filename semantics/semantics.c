@@ -297,7 +297,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
         int toendlens[MAX_CONDITIONAL_LEN];
         int codelen, *toendp;
         toendp = toendlens;
-        struct tree_node *child, *subchild;
+        struct tree_node *child;
         struct type type1;
         struct bytecode *code = env->code;
         child = root->child;
@@ -412,53 +412,34 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
         int toendlens[MAX_CONDITIONAL_LEN];
         int codelen, *toendp;
         toendp = toendlens;
-        struct tree_node *child, *subchild;
+        struct tree_node *child;
         struct type type0, type1;
         struct bytecode *code = env->code;
         child = root->child;
-
-        type1 = emit_expression(env, child);
-        if (type1.type != TYPE_BOOLEAN) {
-                semantics_error(env, child, "if condition must be boolean");
-        }
-        emit_three_bytes(env, child, OP_SKIPF_LONG, 0, 0);
-        codelen = bytes_len(&code->code);
-        emit_byte(env, child, OP_POPV);
-        child = child->next;
-        type0 = emit_expression(env, child);
-        emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
-        *toendp++ = bytes_len(&code->code);
-        patch_skip_long(env, child, codelen);
-        emit_byte(env, child, OP_POPV);
-        child = child->next;
-
-        if (child->type == NODE_ELSIF_EXPR_LIST) {
-                subchild = child->child;
-                while (subchild != NULL) {
-                        type1 = emit_expression(env, subchild);
-                        if (type1.type != TYPE_BOOLEAN) {
-                                semantics_error(env, subchild, "elsif condition must be boolean");
-                                return type0;
-                        }
-                        emit_three_bytes(env, subchild, OP_SKIPF_LONG, 0, 0);
-                        codelen = bytes_len(&code->code);
-                        emit_byte(env, subchild, OP_POPV);
-                        subchild = subchild->next;
-                        type1 = emit_expression(env, subchild);
-                        if (type0.type != type1.type) {
-                                semantics_error(env, subchild, "conditional expression types must be the same");
-                                return type0;
-                        }
-                        emit_three_bytes(env, subchild, OP_SKIP_LONG, 0, 0);
-                        if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
-                                semantics_error(env, subchild, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
-                                return type0;
-                        }
-                        *toendp++ = bytes_len(&code->code);
-                        patch_skip_long(env, subchild, codelen);
-                        emit_byte(env, subchild, OP_POPV);
-                        subchild = subchild->next;
+        while (child != NULL && child->type == NODE_CONDITION_AND_EXPRESSION) {
+                type1 = emit_expression(env, child->left);
+                if (type1.type != TYPE_BOOLEAN) {
+                        semantics_error(env, child->left, "if condition must be boolean");
+                        return type0;
                 }
+                emit_three_bytes(env, child->left, OP_SKIPF_LONG, 0, 0);
+                codelen = bytes_len(&code->code);
+                emit_byte(env, child->left, OP_POPV);
+                type1 = emit_expression(env, child->right);
+                if (child == root->child)
+                        type0 = type1;
+                if (type0.type != type1.type) {
+                        semantics_error(env, child, "conditional expression types must be the same");
+                        return type0;
+                }
+                emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
+                if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
+                        semantics_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
+                        return type0;
+                }
+                *toendp++ = bytes_len(&code->code);
+                patch_skip_long(env, child, codelen);
+                emit_byte(env, child, OP_POPV);
                 child = child->next;
         }
         type1 = emit_expression(env, child);
