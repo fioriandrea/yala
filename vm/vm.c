@@ -155,9 +155,10 @@ vm_run(struct vm *vm)
                 break;
         case OP_WRITE:
                 arg0 = advance_ip(vm);
-                for (int i = 0; i < arg0; i++) {
-                        value_print(popv(vm));
+                for (struct value *p = vm->sp - arg0; p < vm->sp; p++) {
+                        value_print(*p);
                 }
+                vm->sp = vm->sp - arg0;
                 break;
         case OP_GET_LOCAL_LONG:
                 arg0 = advance_ip(vm);

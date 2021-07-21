@@ -699,15 +699,17 @@ tree_node_print_helper(struct tree_node *root, int level)
         static char *dash = "─";
         static char *pipe =  "│";
 
-        if (root == NULL)
-                return;
-
         if (level > 0) {
                 int i;
                 for (i = 0; i < level - 1; i++) {
                         printf("%s   ", pipe);
                 }
                 printf("%s%s%s ", tee, dash, dash);
+        }
+
+        if (root == NULL) {
+                printf("NULL\n");
+                return;
         }
 
         printf("%s ", node_type_string(root->type));

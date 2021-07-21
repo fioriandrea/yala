@@ -328,6 +328,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                 righttype = emit_expression(env, root->right);
                 /* if not indexing */
                 localindex = environment_local_get(env, root->left->value, &local);
+                if (localindex < 0) {
+                        semantics_error(env, root, "undefined variable");
+                }
                 if (!env->error && local.type.type != righttype.type) {
                         semantics_error(env, root, "mismatching types in assignment");
                 }
