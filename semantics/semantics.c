@@ -233,9 +233,11 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct ty
 {
         switch (type.type) {
                 case TYPE_BOOLEAN:
+                emit_byte(env, node, OP_LOCI);
                 emit_constant(env, node, value_from_c_bool(0));
                 break;
                 case TYPE_INTEGER:
+                emit_byte(env, node, OP_LOCI);
                 emit_constant(env, node, value_from_c_int(0));
                 break;
         }
@@ -256,7 +258,6 @@ emit_declare_local(struct environment *env, struct tree_node *current, struct ty
         env->locals[env->count].name = current->value;
         env->locals[env->count].type = type;
         env->count++;
-
 }
 
 int
