@@ -304,13 +304,15 @@ emit_declare_local(struct environment *env, struct tree_node *current, struct ty
                 semantics_error(env, current, "maximum number of local variables exceeded");
                 return;
         }
-        if (environment_local_get(env, current->value, NULL) >= 0) {
+        struct local local;
+        if (environment_local_get(env, current->value, &local) >= 0 && local.depth == env->depth) {
                 semantics_error(env, current, "variable already declared");
                 return;
         }
         emit_variable_default(env, current, type);
         env->locals[env->count].name = current->value;
         env->locals[env->count].type = type;
+        env->locals[env->count].depth = env->depth;
         env->count++;
 }
 
