@@ -89,6 +89,7 @@ enum node_type {
         NODE_COND_EXPR,
         NODE_DIVIDE_EXPR,
         NODE_ELSIF_EXPR_LIST,
+        NODE_ELSIF_STAT_LIST,
         NODE_EQ_EXPR,
         NODE_EXIT_STAT,
         NODE_EXPR_BODY,
