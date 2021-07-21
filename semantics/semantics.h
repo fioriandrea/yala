@@ -29,6 +29,7 @@ enum opcode {
 
         OP_SKIP_LONG, /* jumps */
         OP_SKIPF_LONG,
+        OP_SKIP_BACK_LONG,
 
         OP_ZERO, /* constants */
         OP_ONE,

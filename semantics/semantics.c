@@ -61,6 +61,7 @@ opcodestring(enum opcode code)
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
         case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
+        case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
         case OP_HALT: return "OP_HALT";
         }
         return "unreachable return in opcodestring";
@@ -112,6 +113,7 @@ disassemble(struct bytecode *code)
                 case OP_LOCS:
                         ip = disassemble_constant(code, ip);
                         break;
+                case OP_SKIP_BACK_LONG:
                 case OP_SKIP_LONG:
                 case OP_SKIPF_LONG:
                 case OP_GET_LOCAL_LONG:
@@ -197,6 +199,27 @@ patch_skip_long(struct environment *env, struct tree_node *root, int codelen)
         jumplenscn = right_byte(jumplen);
         code->code.buffer[codelen - 2] = jumplenfst;
         code->code.buffer[codelen - 1] = jumplenscn;
+        return 1;
+}
+
+static int
+emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen)
+{
+        if (env->error)
+                return 0;
+        emit_three_bytes(env, root, OP_SKIP_BACK_LONG, 0, 0);
+        struct bytecode *code = env->code;
+        int jumplen;
+        uint8_t jumplenfst, jumplenscn;
+        jumplen = bytes_len(&code->code) - codelen;
+        if (jumplen > MAX_SKIP_LONG) {
+                semantics_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
+                return 0;
+        }
+        jumplenfst = left_byte(jumplen);
+        jumplenscn = right_byte(jumplen);
+        code->code.buffer[bytes_len(&code->code) - 2] = jumplenfst;
+        code->code.buffer[bytes_len(&code->code) - 1] = jumplenscn;
         return 1;
 }
 
@@ -329,6 +352,27 @@ emit_if_statement(struct environment *env, struct tree_node *root)
         }
 }
 
+static void
+emit_while_statement(struct environment *env, struct tree_node *root)
+{
+        int codelen, offsetback, startlen;
+        struct type type1;
+        struct bytecode *code = env->code;
+        startlen = bytes_len(&code->code);
+        type1 = emit_expression(env, root->left);
+        if (type1.type != TYPE_BOOLEAN) {
+                semantics_error(env, root->left, "while condition must be boolean");
+                return;
+        }
+        emit_three_bytes(env, root->left, OP_SKIPF_LONG, 0, 0);
+        codelen = bytes_len(&code->code);
+        emit_byte(env, root->left, OP_POPV);
+        emit_statement(env, root->right);
+        emit_skip_back_long(env, root->right, startlen);
+        emit_byte(env, root->left, OP_POPV);
+        patch_skip_long(env, root, codelen);
+}
+
 void
 emit_statement(struct environment *env, struct tree_node *root)
 {
@@ -396,6 +440,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                 return;
         case NODE_IF_STAT:
                 emit_if_statement(env, root);
+                return;
+        case NODE_WHILE_STAT:
+                emit_while_statement(env, root);
                 return;
         case NODE_EXPR_STAT:
                 emit_expression(env, root->child);

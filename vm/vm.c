@@ -138,6 +138,12 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 vm->ip += arglong0;
                 break;
+        case OP_SKIP_BACK_LONG:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                vm->ip -= arglong0;
+                break;
         case OP_SKIPF_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
