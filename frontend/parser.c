@@ -32,6 +32,7 @@ static struct tree_node *write_stat(struct parser *ps);
 static struct tree_node *writeln_stat(struct parser *ps);
 static struct tree_node *if_stat(struct parser *ps);
 static struct tree_node *while_stat(struct parser *ps);
+static struct tree_node *repeat_stat(struct parser *ps);
 static struct tree_node *dispatch_id_stat(struct parser *ps);
 static struct tree_node *assign_stat_trial(struct parser *ps, struct tree_node *lhs);
 static struct tree_node *var_decl_stat_trial(struct parser *ps, struct tree_node *res);
@@ -121,6 +122,8 @@ stat(struct parser *ps)
                 return if_stat(ps);
         case TOKEN_WHILE:
                 return while_stat(ps);
+        case TOKEN_REPEAT:
+                return repeat_stat(ps);
         case TOKEN_WRITE:
                 return write_stat(ps);
         case TOKEN_WRITELN:
@@ -140,6 +143,18 @@ while_stat(struct parser *ps)
         res->right = stat_list_until(ps, TOKEN_END);
         eat_error(ps, TOKEN_END);
         return res;
+}
+
+static struct tree_node *
+repeat_stat(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_REPEAT_STAT);
+        advance(ps);
+        res->left = stat_list_until(ps, TOKEN_UNTIL);
+        eat_error(ps, TOKEN_UNTIL);
+        res->right = expr(ps);
+        return res;
+
 }
 
 static struct tree_node *

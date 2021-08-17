@@ -375,6 +375,27 @@ emit_while_statement(struct environment *env, struct tree_node *root)
         patch_skip_long(env, root, codelen);
 }
 
+static void
+emit_repeat_statement(struct environment *env, struct tree_node *root)
+{
+        int codelen, offsetback, startlen;
+        struct type type1;
+        struct bytecode *code = env->code;
+        startlen = bytes_len(&code->code);
+
+        emit_statement(env, root->left);
+
+        type1 = emit_expression(env, root->right);
+        if (type1.type != TYPE_BOOLEAN) {
+                semantics_error(env, root->right, "until condition must be boolean");
+                return;
+        }
+
+        emit_three_bytes(env, root->right, OP_SKIPF_LONG, 0, 1);
+        codelen = bytes_len(&code->code);
+        emit_skip_back_long(env, root->right, startlen);
+}
+
 void
 emit_statement(struct environment *env, struct tree_node *root)
 {
@@ -445,6 +466,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                 return;
         case NODE_WHILE_STAT:
                 emit_while_statement(env, root);
+                return;
+        case NODE_REPEAT_STAT:
+                emit_repeat_statement(env, root);
                 return;
         case NODE_EXPR_STAT:
                 emit_expression(env, root->child);
