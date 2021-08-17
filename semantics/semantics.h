@@ -129,10 +129,15 @@ struct type {
 
 #define MAX_LOCALS 200
 
+#define LOCAL_PERM_R (1 << 0)
+#define LOCAL_PERM_W (1 << 1)
+#define LOCAL_PERM_RW (LOCAL_PERM_R | LOCAL_PERM_W)
+
 struct local {
         struct token name;
         struct type type;
         int depth;
+        uint8_t perms;
 };
 
 struct environment {

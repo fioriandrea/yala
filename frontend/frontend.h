@@ -51,6 +51,7 @@ enum token_type {
         TOKEN_STRING,
         TOKEN_STRINGLIT,
         TOKEN_THEN,
+        TOKEN_TO,
         TOKEN_TRUE,
         TOKEN_UNTIL,
         TOKEN_VECTOR,

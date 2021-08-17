@@ -141,6 +141,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                 {"boolean", 7, TOKEN_BOOLEAN},
                 {"break", 5, TOKEN_BREAK},
                 {"do", 2, TOKEN_DO},
+                {"to", 2, TOKEN_TO},
                 {"else", 4, TOKEN_ELSE},
                 {"elsif", 5, TOKEN_ELSIF},
                 {"end", 3, TOKEN_END},
@@ -256,15 +257,15 @@ token_type_string(enum token_type type)
         case TOKEN_FALSE: return "TOKEN_FALSE";
         case TOKEN_FOR: return "TOKEN_FOR";
         case TOKEN_FUNCTION: return "TOKEN_FUNCTION";
-        case TOKEN_GREATER: return "TOKEN_GREATER";
         case TOKEN_GREATEREQ: return "TOKEN_GREATEREQ";
+        case TOKEN_GREATER: return "TOKEN_GREATER";
         case TOKEN_ID: return "TOKEN_ID";
         case TOKEN_IF: return "TOKEN_IF";
         case TOKEN_INOUT: return "TOKEN_INOUT";
-        case TOKEN_INTEGER: return "TOKEN_INTEGER";
         case TOKEN_INTEGERLIT: return "TOKEN_INTEGERLIT";
-        case TOKEN_LESS: return "TOKEN_LESS";
+        case TOKEN_INTEGER: return "TOKEN_INTEGER";
         case TOKEN_LESSEQ: return "TOKEN_LESSEQ";
+        case TOKEN_LESS: return "TOKEN_LESS";
         case TOKEN_LPAREN: return "TOKEN_LPAREN";
         case TOKEN_LSQUARE: return "TOKEN_LSQUARE";
         case TOKEN_MINUS: return "TOKEN_MINUS";
@@ -282,15 +283,16 @@ token_type_string(enum token_type type)
         case TOKEN_SEMICOLON: return "TOKEN_SEMICOLON";
         case TOKEN_SLASH: return "TOKEN_SLASH";
         case TOKEN_STAR: return "TOKEN_STAR";
-        case TOKEN_STRING: return "TOKEN_STRING";
         case TOKEN_STRINGLIT: return "TOKEN_STRINGLIT";
+        case TOKEN_STRING: return "TOKEN_STRING";
         case TOKEN_THEN: return "TOKEN_THEN";
+        case TOKEN_TO: return "TOKEN_TO";
         case TOKEN_TRUE: return "TOKEN_TRUE";
         case TOKEN_UNTIL: return "TOKEN_UNTIL";
         case TOKEN_VECTOR: return "TOKEN_VECTOR";
         case TOKEN_WHILE: return "TOKEN_WHILE";
-        case TOKEN_WRITE: return "TOKEN_WRITE";
         case TOKEN_WRITELN: return "TOKEN_WRITELN";
+        case TOKEN_WRITE: return "TOKEN_WRITE";
         }
         return "unreachable return in token_type_string";
 }

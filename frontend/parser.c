@@ -23,6 +23,7 @@ static enum node_type token_to_bin_node_type(struct token op);
 static void advance(struct parser *ps);
 static int check(struct parser *ps, enum token_type type);
 static int eat(struct parser *ps, enum token_type type);
+static int check_error(struct parser *ps, enum token_type type);
 static int eat_error(struct parser *ps, enum token_type type);
 static void synchronize(struct parser *ps);
 
@@ -33,6 +34,7 @@ static struct tree_node *writeln_stat(struct parser *ps);
 static struct tree_node *if_stat(struct parser *ps);
 static struct tree_node *while_stat(struct parser *ps);
 static struct tree_node *repeat_stat(struct parser *ps);
+static struct tree_node *for_stat(struct parser *ps);
 static struct tree_node *dispatch_id_stat(struct parser *ps);
 static struct tree_node *assign_stat_trial(struct parser *ps, struct tree_node *lhs);
 static struct tree_node *var_decl_stat_trial(struct parser *ps, struct tree_node *res);
@@ -124,6 +126,8 @@ stat(struct parser *ps)
                 return while_stat(ps);
         case TOKEN_REPEAT:
                 return repeat_stat(ps);
+        case TOKEN_FOR:
+                return for_stat(ps);
         case TOKEN_WRITE:
                 return write_stat(ps);
         case TOKEN_WRITELN:
@@ -155,6 +159,37 @@ repeat_stat(struct parser *ps)
         res->right = expr(ps);
         return res;
 
+}
+
+static struct tree_node *
+for_stat(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_FOR_STAT);
+        advance(ps);
+
+        struct tree_node *assign = new_tree_node_at_current(ps, NODE_ASSIGN_STAT);
+        check_error(ps, TOKEN_ID);
+        assign->left = id_expr(ps);
+        eat_error(ps, TOKEN_ASSIGN);
+        assign->right = expr(ps);
+        eat_error(ps, TOKEN_TO);
+
+        struct tree_node *limit = expr(ps);
+        eat_error(ps, TOKEN_DO);
+
+        struct tree_node *condition = new_tree_node(NODE_LESSEQ_EXPR);
+        condition->value = assign->left->value;
+        condition->left = assign->left;
+        condition->right = limit;
+
+        assign->next = condition;
+
+        res->left = assign;
+
+        res->right = stat_list_until(ps, TOKEN_END);
+        eat_error(ps, TOKEN_END);
+
+        return res;
 }
 
 static struct tree_node *
@@ -548,9 +583,9 @@ eat(struct parser *ps, enum token_type type)
 }
 
 static int
-eat_error(struct parser *ps, enum token_type type)
+check_error(struct parser *ps, enum token_type type)
 {
-        if (!eat(ps, type)) {
+        if (!check(ps, type)) {
                 parse_error(
                         ps,
                         ps->current,
@@ -561,6 +596,15 @@ eat_error(struct parser *ps, enum token_type type)
                 );
                 return 0;
         }
+        return 1;
+}
+
+static int
+eat_error(struct parser *ps, enum token_type type)
+{
+        if (!check_error(ps, type))
+                return 0;
+        eat(ps, type);
         return 1;
 }
 
@@ -774,9 +818,18 @@ tree_node_print_helper(struct tree_node *root, int level)
         printf("%s ", node_type_string(root->type));
         printf("[%.*s %d:%d]\n", root->value.length, root->value.start, root->value.line, root->value.linepos);
         /* right first for clarity in output for nested binary expressions */
-        tree_node_print_helper(root->right, level + 1);
-        tree_node_print_helper(root->left, level + 1);
-        struct tree_node *child = root->child;
+        struct tree_node *child;
+        child = root->right;
+        while (child != NULL) {
+                tree_node_print_helper(child, level + 1);
+                child = child->next;
+        }
+        child = root->left;
+        while (child != NULL) {
+                tree_node_print_helper(child, level + 1);
+                child = child->next;
+        }
+        child = root->child;
         while (child != NULL) {
                 tree_node_print_helper(child, level + 1);
                 child = child->next;
@@ -786,7 +839,10 @@ tree_node_print_helper(struct tree_node *root, int level)
 void
 tree_node_print(struct tree_node *root)
 {
-        tree_node_print_helper(root, 0);
+        while (root != NULL) {
+                tree_node_print_helper(root, 0);
+                root = root->next;
+        }
 }
 
 void

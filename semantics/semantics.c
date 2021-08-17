@@ -298,7 +298,16 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct ty
 }
 
 static void
-emit_declare_local(struct environment *env, struct tree_node *current, struct type type)
+init_local(struct local *loc, struct token name, struct type type, int depth, uint8_t perms)
+{
+        loc->name = name;
+        loc->type = type;
+        loc->perms = perms;
+        loc->depth = depth;
+}
+
+static int
+emit_declare_local(struct environment *env, struct tree_node *current, struct type type, uint8_t perms)
 {
         if (env->count == MAX_LOCALS) {
                 semantics_error(env, current, "maximum number of local variables exceeded");
@@ -310,10 +319,8 @@ emit_declare_local(struct environment *env, struct tree_node *current, struct ty
                 return;
         }
         emit_variable_default(env, current, type);
-        env->locals[env->count].name = current->value;
-        env->locals[env->count].type = type;
-        env->locals[env->count].depth = env->depth;
-        env->count++;
+        init_local(&env->locals[env->count], current->value, type, env->depth, perms);
+        return env->count++;
 }
 
 static void
@@ -396,6 +403,90 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
         emit_skip_back_long(env, root->right, startlen);
 }
 
+static void
+emit_assign_statement(struct environment *env, struct tree_node *root)
+{
+        struct type righttype;
+        int localindex;
+        struct local local;
+
+        righttype = emit_expression(env, root->right);
+        /* if not indexing */
+        localindex = environment_local_get(env, root->left->value, &local);
+        if (localindex < 0) {
+                semantics_error(env, root, "undefined variable");
+        }
+        if (!env->error && (local.perms & LOCAL_PERM_W) == 0) {
+                semantics_error(env, root, "cannot assign read-only variable");
+        }
+        if (!env->error && local.type.type != righttype.type) {
+                semantics_error(env, root, "mismatching types in assignment");
+        }
+        emit_three_bytes(env, root, OP_SET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
+}
+
+static void
+emit_for_statement(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *assign = root->left;
+        struct tree_node *condition = assign->next;
+        struct tree_node *statlist = root->right;
+        struct tree_node increment;
+
+        struct token forcond_token;
+        forcond_token.type = TOKEN_ID;
+        forcond_token.start = "0forcond";
+        forcond_token.length = 8;
+        forcond_token.line = condition->right->value.line;
+        forcond_token.linepos = condition->right->value.linepos;
+
+        struct tree_node forcond_node;
+        forcond_node.type = NODE_ID;
+        forcond_node.child = NULL;
+        forcond_node.left = NULL;
+        forcond_node.right = NULL;
+        forcond_node.next = NULL;
+        forcond_node.value = forcond_token;
+        
+        emit_push_scope(env, root);
+
+        struct type inttype;
+        inttype.type = TYPE_INTEGER;
+        int incindex = emit_declare_local(env, assign->left, inttype, LOCAL_PERM_RW);
+        emit_assign_statement(env, assign);
+        env->locals[env->count - 1].perms = LOCAL_PERM_R;
+
+        int forcond_index = emit_declare_local(env, &forcond_node, inttype, LOCAL_PERM_R);
+        struct type type1;
+        type1 = emit_expression(env, condition->right);
+        if (type1.type != TYPE_INTEGER) {
+                semantics_error(env, condition->right, "for loop upper range must be an integer");
+                return;
+        }
+        emit_three_bytes(env, &forcond_node, OP_SET_LOCAL_LONG, left_byte(forcond_index), right_byte(forcond_index));
+
+        int codelen, offsetback, startlen;
+        struct bytecode *code = env->code;
+        startlen = bytes_len(&code->code);
+        emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
+        emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(forcond_index), right_byte(forcond_index));
+        emit_byte(env, condition, OP_ILEQ);
+        emit_three_bytes(env, condition, OP_SKIPF_LONG, 0, 0);
+        codelen = bytes_len(&code->code);
+        emit_byte(env, condition, OP_POPV);
+        emit_statement(env, statlist);
+        emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
+        emit_byte(env, root, OP_ONE);
+        emit_byte(env, root, OP_ADDI);
+        emit_three_bytes(env, root, OP_SET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
+        emit_skip_back_long(env, statlist, startlen);
+        emit_byte(env, condition, OP_POPV);
+        patch_skip_long(env, root, codelen);
+
+        emit_pop_scope(env, root);
+}
+
+
 void
 emit_statement(struct environment *env, struct tree_node *root)
 {
@@ -416,7 +507,7 @@ emit_statement(struct environment *env, struct tree_node *root)
         case NODE_VAR_DECL:
                 node = root->left->child;
                 while (node != NULL) {
-                        emit_declare_local(env, node, type_node_to_type(root->right));
+                        emit_declare_local(env, node, type_node_to_type(root->right), LOCAL_PERM_RW);
                         node = node->next;
                 }
                 return;
@@ -450,16 +541,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_NEWLINE);
                 return;
         case NODE_ASSIGN_STAT:
-                righttype = emit_expression(env, root->right);
-                /* if not indexing */
-                localindex = environment_local_get(env, root->left->value, &local);
-                if (localindex < 0) {
-                        semantics_error(env, root, "undefined variable");
-                }
-                if (!env->error && local.type.type != righttype.type) {
-                        semantics_error(env, root, "mismatching types in assignment");
-                }
-                emit_three_bytes(env, root, OP_SET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
+                emit_assign_statement(env, root);
                 return;
         case NODE_IF_STAT:
                 emit_if_statement(env, root);
@@ -469,6 +551,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                 return;
         case NODE_REPEAT_STAT:
                 emit_repeat_statement(env, root);
+                return;
+        case NODE_FOR_STAT:
+                emit_for_statement(env, root);
                 return;
         case NODE_EXPR_STAT:
                 emit_expression(env, root->child);
