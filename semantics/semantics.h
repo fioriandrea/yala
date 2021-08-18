@@ -62,10 +62,14 @@ enum value_type {
 
 struct type {
         enum value_type type;
-        enum value_type base;
-        int dimensions[MAX_VECTOR_DIMENSIONS];
-        int rank;
-        int size;
+        union {
+                struct {
+                        enum value_type base;
+                        int dimensions[MAX_VECTOR_DIMENSIONS];
+                        int rank;
+                        int size;
+                } vector;
+        } meta;
 };
 
 struct value_string {

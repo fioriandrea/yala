@@ -233,9 +233,9 @@ scalar_type(enum value_type vt)
 
         struct type type;
         type.type = vt;
-        type.base = vt;
-        type.rank = 0;
-        type.size = 1;
+        type.meta.vector.base = vt;
+        type.meta.vector.rank = 0;
+        type.meta.vector.size = 1;
         return type;
 }
 
@@ -290,7 +290,7 @@ compare_values(struct value val0, struct value val1)
 int
 type_equal(struct type type0, struct type type1)
 {
-        return type0.type == type1.type && type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
+        return type0.type == type1.type && type0.meta.vector.base == type1.meta.vector.base && type0.meta.vector.rank == type1.meta.vector.rank && memcmp(type0.meta.vector.dimensions, type1.meta.vector.dimensions, sizeof(int) * type0.meta.vector.rank) == 0;
 }
 
 void
@@ -301,11 +301,11 @@ type_print(struct type type)
                 case VAL_BOOLEAN: printf("VAL_BOOLEAN"); return;
                 case VAL_INTEGER: printf("VAL_INTEGER"); return;
                 case VAL_VECTOR: {
-                        for (int i = 0; i < type.rank; i++) {
-                                printf("%d ", type.dimensions[i]);
+                        for (int i = 0; i < type.meta.vector.rank; i++) {
+                                printf("%d ", type.meta.vector.dimensions[i]);
                         }
                         printf("of ");
-                        type_print(scalar_type(type.base));
+                        type_print(scalar_type(type.meta.vector.base));
                         return;
                 }
         }

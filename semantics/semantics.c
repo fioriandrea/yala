@@ -414,22 +414,21 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
 {
         struct type type;
         type.type = VAL_VECTOR;
-        type.size = parse_integer_token(node->left->value);
-        type.dimensions[0] = type.size;
-        type.rank = 1;
+        type.meta.vector.size = parse_integer_token(node->left->value);
+        type.meta.vector.dimensions[0] = type.meta.vector.size;
+        type.meta.vector.rank = 1;
 
         struct type inside = type_node_to_type(env, node->right);
-        type.base = inside.type;
+        type.meta.vector.base = inside.meta.vector.base;
         if (inside.type == VAL_VECTOR) {
-                for (int i = 0; i < inside.rank; i++) {
-                        if (type.rank == MAX_VECTOR_DIMENSIONS - 1) {
+                for (int i = 0; i < inside.meta.vector.rank; i++) {
+                        if (type.meta.vector.rank == MAX_VECTOR_DIMENSIONS - 1) {
                                 semantics_error(env, node, "maximum vector rank exceeded");
                                 break;
                         }
-                        type.dimensions[type.rank++] = inside.dimensions[i];
-                        type.size += inside.dimensions[i];
+                        type.meta.vector.dimensions[type.meta.vector.rank++] = inside.meta.vector.dimensions[i];
+                        type.meta.vector.size += inside.meta.vector.dimensions[i];
                 }
-                type.base = inside.base;
         }
         return type; 
 }
@@ -493,7 +492,7 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct ty
                 emit_byte(env, node, OP_LOCV);
                 struct value val;
                 val.type = type;
-                val.as.vector.size = type.size;
+                val.as.vector.size = type.meta.vector.size;
                 emit_constant(env, node, val);
                 break;
         }
@@ -747,15 +746,15 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
         }
 
         struct type type;
-        type.base = VAL_INTEGER;
+        type.meta.vector.base = VAL_INTEGER;
         int size = 0;
         if (root->child != NULL) {
                 type = emit_vector_constant(env, root->child, depth + 1);
-                toret.rank = type.rank + 1;
-                memcpy(toret.dimensions, type.dimensions, sizeof(toret.dimensions));
-                toret.base = type.base;
-                size = type.size;
-                toret.dimensions[toret.rank - 1] = 1;
+                toret.meta.vector.rank = type.meta.vector.rank + 1;
+                memcpy(toret.meta.vector.dimensions, type.meta.vector.dimensions, sizeof(toret.meta.vector.dimensions));
+                toret.meta.vector.base = type.meta.vector.base;
+                size = type.meta.vector.size;
+                toret.meta.vector.dimensions[toret.meta.vector.rank - 1] = 1;
 
                 for (struct tree_node *node = root->child->next; node != NULL; node = node->next) {
                         struct type current_type = emit_vector_constant(env, node, depth + 1);
@@ -763,13 +762,13 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                                 semantics_error(env, node, "vector elements must be homogeneous");
                                 break;
                         }
-                        size += type.size;
-                        toret.dimensions[toret.rank - 1]++;
+                        size += type.meta.vector.size;
+                        toret.meta.vector.dimensions[toret.meta.vector.rank - 1]++;
                 }       
         }
 
         toret.type = VAL_VECTOR;
-        toret.size = size;
+        toret.meta.vector.size = size;
 
         if (depth != 0)
                 return toret;
