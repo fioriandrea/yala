@@ -290,11 +290,7 @@ compare_values(struct value val0, struct value val1)
 int
 type_equal(struct type type0, struct type type1)
 {
-        if (type0.type != type1.type)
-                return 0;
-        if (type0.type != VAL_VECTOR)
-                return 1;
-        return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
+        return type0.type == type1.type && type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
 }
 
 void

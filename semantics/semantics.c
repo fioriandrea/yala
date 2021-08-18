@@ -144,7 +144,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 codelen = bytes_len(&code->code);
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN)) {
+                if (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN) {
                         semantics_error(env, root, "operands must be booleans");
                 }
                 patch_skip_long(env, root, codelen);
@@ -156,14 +156,14 @@ emit_expression(struct environment *env, struct tree_node *root)
                 codelen = bytes_len(&code->code);
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN)) {
+                if (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN) {
                         semantics_error(env, root, "operands must be booleans");
                 }
                 patch_skip_long(env, root, codelen);
                 return booltype;
         case NODE_NOT_EXPR:
                 lefttype = emit_expression(env, root->left);
-                if (!env->error && lefttype.type != VAL_BOOLEAN) {
+                if (lefttype.type != VAL_BOOLEAN) {
                         semantics_error(env, root, "operand must be a boolean");
                 }
                 emit_byte(env, root, OP_NOT);
@@ -171,7 +171,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_PLUS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER)) {
+                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
                         semantics_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_ADDI);
@@ -179,7 +179,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_MINUS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER)) {
+                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
                         semantics_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_SUBI);
@@ -187,7 +187,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_TIMES_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER)) {
+                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
                         semantics_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_MULI);
@@ -195,7 +195,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_DIVIDE_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER)) {
+                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
                         semantics_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_DIVI);
@@ -203,7 +203,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_NEG_EXPR:
                 emit_byte(env, root, OP_ZERO);
                 lefttype = emit_expression(env, root->left);
-                if (!env->error && lefttype.type != VAL_INTEGER) {
+                if (lefttype.type != VAL_INTEGER) {
                         semantics_error(env, root, "operand must be an integer");
                 }
                 emit_byte(env, root, OP_SUBI);
@@ -211,7 +211,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_NEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && !type_equal(lefttype, righttype)) {
+                if (!type_equal(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
@@ -220,7 +220,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_EQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && !type_equal(lefttype, righttype)) {
+                if (!type_equal(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
@@ -228,7 +228,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_GREATEREQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && !types_comparable(lefttype, righttype)) {
+                if (!types_comparable(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_IGRTEQ);
@@ -236,7 +236,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_GREATER_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && !types_comparable(lefttype, righttype)) {
+                if (!types_comparable(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_IGRT);
@@ -244,7 +244,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_LESSEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && !types_comparable(lefttype, righttype)) {
+                if (!types_comparable(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_ILEQ);
@@ -252,7 +252,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_LESS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && !types_comparable(lefttype, righttype)) {
+                if (!types_comparable(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_ILT);
@@ -908,6 +908,8 @@ disassemble(struct bytecode *code)
 static void
 semantics_error(struct environment *env, struct tree_node *root, char *fmt, ...)
 {
+        if (env->error)
+                return;
         env->error = 1;
         va_list args;
         va_start(args, fmt);
