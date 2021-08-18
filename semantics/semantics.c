@@ -293,6 +293,9 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct ty
                 case TYPE_INTEGER:
                 emit_byte(env, node, OP_LOCI);
                 emit_constant(env, node, value_from_c_int(0));
+                case TYPE_STRING:
+                emit_byte(env, node, OP_LOCS);
+                emit_constant(env, node, value_from_c_string(""));
                 break;
         }
 }
@@ -612,16 +615,28 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
         return type0;
 }
 
+static int
+types_comparable(struct type lefttype, struct type righttype)
+{
+        if (lefttype.type != righttype.type)
+                return 0;
+        if (lefttype.type != TYPE_STRING && lefttype.type != TYPE_INTEGER)
+                return 0;
+        return 1;
+}
+
+
 struct type
 emit_expression(struct environment *env, struct tree_node *root)
 {
         struct type lefttype, righttype;
-        struct type inttype, booltype;
+        struct type inttype, booltype, strtype;
         struct local local;
         struct bytecode *code = env->code;
         int codelen, localindex;
         inttype.type = TYPE_INTEGER;
         booltype.type = TYPE_BOOLEAN;
+        strtype.type = TYPE_STRING;
         switch (root->type) {
         case NODE_AND_EXPR:
                 lefttype = emit_expression(env, root->left);
@@ -713,32 +728,32 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_GREATEREQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != TYPE_INTEGER || righttype.type != TYPE_INTEGER)) {
-                        semantics_error(env, root, "operands must be integers");
+                if (!env->error && !types_comparable(lefttype, righttype)) {
+                        semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_IGRTEQ);
                 return booltype;
         case NODE_GREATER_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != TYPE_INTEGER || righttype.type != TYPE_INTEGER)) {
-                        semantics_error(env, root, "operands must be integers");
+                if (!env->error && !types_comparable(lefttype, righttype)) {
+                        semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_IGRT);
                 return booltype;
         case NODE_LESSEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != TYPE_INTEGER || righttype.type != TYPE_INTEGER)) {
-                        semantics_error(env, root, "operands must be integers");
+                if (!env->error && !types_comparable(lefttype, righttype)) {
+                        semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_ILEQ);
                 return booltype;
         case NODE_LESS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && (lefttype.type != TYPE_INTEGER || righttype.type != TYPE_INTEGER)) {
-                        semantics_error(env, root, "operands must be integers");
+                if (!env->error && !types_comparable(lefttype, righttype)) {
+                        semantics_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_ILT);
                 return booltype;
@@ -758,6 +773,13 @@ emit_expression(struct environment *env, struct tree_node *root)
                 }
                 emit_constant(env, root, value_from_c_int(parse_integer_token(root->value)));
                 return inttype;
+        case NODE_STRING_CONST:
+                emit_byte(env, root, OP_LOCS);
+                if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
+                        semantics_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+                }
+                emit_constant(env, root, value_from_token(root->value));
+                return strtype;
         case NODE_ID:
                 if ((localindex = environment_local_get(env, root->value, &local)) < 0) {
                         semantics_error(env, root, "undefined variable");

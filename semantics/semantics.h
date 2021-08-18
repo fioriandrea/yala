@@ -58,6 +58,9 @@ struct value_string {
         int length;
 };
 
+struct value_string
+value_string_from_token(struct token token);
+
 struct value {
         enum value_type type;
         union {
@@ -70,8 +73,10 @@ struct value {
 void value_print(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
-// TODO value_from_c_string
+struct value value_from_token(struct token token);
+struct value value_from_c_string(char *str);
 int values_equal(struct value val0, struct value val1);
+int compare_values(struct value val0, struct value val1);
 
 struct lineinfo {
         int line;

@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "./semantics.h"
 
@@ -153,6 +154,9 @@ value_print(struct value v)
         case VAL_BOOLEAN:
                 printf("%s", v.as.boolean ? "true" : "false");
                 return;
+        case VAL_STRING:
+                printf("%.*s", v.as.string.length, v.as.string.str);
+                return;
         }
         printf("unreachable value type %d", v.type);
 }
@@ -175,6 +179,34 @@ value_from_c_bool(int b)
         return v;
 }
 
+struct value_string
+value_string_from_token(struct token token)
+{
+        struct value_string vs;
+        vs.length = token.length;
+        vs.str = token.start;
+        return vs;
+}
+
+struct value
+value_from_token(struct token token)
+{
+        struct value v;
+        v.type = VAL_STRING;
+        v.as.string = value_string_from_token(token);
+        return v;
+}
+
+struct value
+value_from_c_string(char *str)
+{
+        struct value v;
+        v.type = VAL_STRING;
+        v.as.string.length = strlen(str);
+        v.as.string.str = str;
+        return v;
+}
+
 int
 values_equal(struct value val0, struct value val1)
 {
@@ -183,6 +215,19 @@ values_equal(struct value val0, struct value val1)
                 return val0.as.integer == val1.as.integer;
         case VAL_BOOLEAN:
                 return val0.as.boolean == val1.as.boolean;
+        case VAL_STRING:
+                return val0.as.string.length == val1.as.string.length && memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length) == 0;
         }
         return -1;
+}
+
+int
+compare_values(struct value val0, struct value val1)
+{
+        switch (val0.type) {
+                case VAL_STRING:
+                        return memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length);
+                case VAL_INTEGER:
+                        return val0.as.integer - val1.as.integer;
+        }
 }

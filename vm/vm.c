@@ -73,6 +73,10 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 pushv(vm, bytecode_constant_at(vm->code, arg0));
                 break;
+        case OP_LOCS:
+                arg0 = advance_ip(vm);
+                pushv(vm, bytecode_constant_at(vm->code, arg0));
+                break;
         case OP_ADDI:
                 val1 = popv(vm);
                 val0 = popv(vm);
@@ -100,22 +104,22 @@ vm_run(struct vm *vm)
         case OP_IGRT:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(val0.as.integer > val1.as.integer));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1) > 0));
                 break;
         case OP_IGRTEQ:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(val0.as.integer >= val1.as.integer));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1) >= 0));
                 break;
         case OP_ILT:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(val0.as.integer < val1.as.integer));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1) < 0));
                 break;
         case OP_ILEQ:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(val0.as.integer <= val1.as.integer));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1) <= 0));
                 break;
         case OP_EQUA:
                 val1 = popv(vm);
