@@ -550,21 +550,27 @@ static struct tree_node *
 dispatch_id_expr(struct parser *ps)
 {
         struct tree_node *res = id_expr(ps);
-        while (eat(ps, TOKEN_LPAREN) || eat(ps, TOKEN_LSQUARE)) {
-                struct token op = ps->previous;
+        if (!eat(ps, TOKEN_LPAREN) && !eat(ps, TOKEN_LSQUARE))
+                return res;
+        struct token op = ps->previous;
+        res = new_binary_node(res, op, NULL);
+        struct tree_node **pp = &res->right;
+        do {
                 switch (op.type) {
                 case TOKEN_LPAREN:
-                        res = new_binary_node(res, op, expr_list(ps));
+                        *pp = expr_list(ps);
+                        pp = &(*pp)->next;
                         eat_error(ps, TOKEN_RPAREN);
                         break;
                 case TOKEN_LSQUARE:
-                        res = new_binary_node(res, op, expr(ps));
+                        *pp = expr(ps);
+                        pp = &(*pp)->next;
                         eat_error(ps, TOKEN_RSQUARE);
                         break;
                 default:
                         break;
                 }
-        }
+        } while (eat(ps, TOKEN_LPAREN) || eat(ps, TOKEN_LSQUARE));
         return res;
 }
 

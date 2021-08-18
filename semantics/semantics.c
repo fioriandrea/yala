@@ -477,17 +477,26 @@ static void
 emit_variable_default(struct environment *env, struct tree_node *node, struct type type)
 {
         switch (type.type) {
-                case VAL_BOOLEAN:
+        case VAL_BOOLEAN:
                 emit_byte(env, node, OP_LOCI);
                 emit_constant(env, node, value_from_c_bool(0));
                 break;
-                case VAL_INTEGER:
+        case VAL_INTEGER:
                 emit_byte(env, node, OP_LOCI);
                 emit_constant(env, node, value_from_c_int(0));
-                case VAL_STRING:
+                break;
+        case VAL_STRING:
                 emit_byte(env, node, OP_LOCS);
                 emit_constant(env, node, value_from_c_string(""));
                 break;
+        case VAL_VECTOR: {
+                emit_byte(env, node, OP_LOCV);
+                struct value val;
+                val.type = type;
+                val.as.vector.size = type.size;
+                emit_constant(env, node, val);
+                break;
+        }
         }
 }
 
