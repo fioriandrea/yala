@@ -16,6 +16,5 @@ struct vm {
 
 void vm_init(struct vm *vm, struct bytecode *code);
 int vm_run(struct vm *vm);
-void vm_free(struct vm *vm);
 
 #endif

@@ -135,16 +135,6 @@ bytecode_constant_at(struct bytecode *code, uint8_t address)
 }
 
 void
-bytecode_free(struct bytecode *code)
-{
-        if (!code)
-                return;
-        bytes_free(&code->code);
-        linelist_free(&code->lines);
-        valuelist_free(&code->constants);
-}
-
-void
 value_print(struct value v)
 {
         switch (v.type) {
@@ -179,13 +169,36 @@ value_from_c_bool(int b)
         return v;
 }
 
+/* http://www.cse.yorku.ca/~oz/hash.html */
+unsigned long
+hash_string(char *str, int length)
+{
+        unsigned long hash = 5381;
+        int c;
+        for (int i = 0; i < length; i++) {
+                c = str[i];
+                hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+        }
+        return hash;
+}
+
+struct value_string
+copy_string(char *str, int length)
+{
+        struct value_string vs;
+        char *cp = malloc(sizeof(char) * length);
+        memcpy(cp, str, length);
+        vs.length = length;
+        vs.str = cp;
+        vs.hash = hash_string(str, length);
+        return vs;
+
+}
+
 struct value_string
 value_string_from_token(struct token token)
 {
-        struct value_string vs;
-        vs.length = token.length;
-        vs.str = token.start;
-        return vs;
+        return copy_string(token.start, token.length);
 }
 
 struct value
@@ -202,8 +215,7 @@ value_from_c_string(char *str)
 {
         struct value v;
         v.type = VAL_STRING;
-        v.as.string.length = strlen(str);
-        v.as.string.str = str;
+        v.as.string = copy_string(str, strlen(str));
         return v;
 }
 
@@ -216,6 +228,8 @@ values_equal(struct value val0, struct value val1)
         case VAL_BOOLEAN:
                 return val0.as.boolean == val1.as.boolean;
         case VAL_STRING:
+                if (val0.as.string.hash != val1.as.string.hash)
+                        return 0;
                 return val0.as.string.length == val1.as.string.length && memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length) == 0;
         }
         return -1;

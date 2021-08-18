@@ -190,9 +190,3 @@ vm_run(struct vm *vm)
         }
         }
 }
-
-void
-vm_free(struct vm *vm)
-{
-        bytecode_free(vm->code);
-}

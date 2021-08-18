@@ -56,6 +56,7 @@ enum value_type {
 struct value_string {
         char *str;
         int length;
+        unsigned long hash;
 };
 
 struct value_string
@@ -73,6 +74,8 @@ struct value {
 void value_print(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
+struct value_string copy_string(char *str, int length);
+unsigned long hash_string(char *str, int length);
 struct value value_from_token(struct token token);
 struct value value_from_c_string(char *str);
 int values_equal(struct value val0, struct value val1);

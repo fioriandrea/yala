@@ -75,14 +75,13 @@ main(int argc, char **argv)
         if (code == NULL)
                 exit(1);
 
+        tree_node_free(root);
+        free(programtext);
+
         disassemble(code);
 
         vm_init(&vm, code);
         vm_run(&vm);
 
-        tree_node_free(root);
-        bytecode_free(code);
-        free(code);
-        free(programtext);
         return 0;
 }

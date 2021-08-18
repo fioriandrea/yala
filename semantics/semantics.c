@@ -802,7 +802,6 @@ generate_bytecode(struct tree_node *parsetree)
         environment_init(&env, code);
         emit_statement(&env, parsetree);
         if (env.error) {
-                bytecode_free(code);
                 return NULL;
         }
         emit_byte(&env, parsetree, OP_HALT);
