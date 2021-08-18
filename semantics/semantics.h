@@ -53,6 +53,12 @@ enum value_type {
         VAL_STRING,
 };
 
+struct type {
+        enum value_type type;
+        union {
+        } additional;
+};
+
 struct value_string {
         char *str;
         int length;
@@ -63,7 +69,7 @@ struct value_string
 value_string_from_token(struct token token);
 
 struct value {
-        enum value_type type;
+        struct type type;
         union {
                 int integer;
                 int boolean;
@@ -79,6 +85,7 @@ unsigned long hash_string(char *str, int length);
 struct value value_from_token(struct token token);
 struct value value_from_c_string(char *str);
 int values_equal(struct value val0, struct value val1);
+int types_comparable(struct type lefttype, struct type righttype);
 int compare_values(struct value val0, struct value val1);
 
 struct lineinfo {
@@ -122,18 +129,6 @@ void bytecode_free(struct bytecode *code);
 void disassemble(struct bytecode *code);
 
 struct bytecode *generate_bytecode(struct tree_node *parsetree);
-
-enum type_type {
-        TYPE_INTEGER,
-        TYPE_BOOLEAN,
-        TYPE_STRING,
-};
-
-struct type {
-        enum type_type type;
-        union {
-        } additional;
-};
 
 #define MAX_LOCALS 200
 

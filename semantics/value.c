@@ -137,7 +137,7 @@ bytecode_constant_at(struct bytecode *code, uint8_t address)
 void
 value_print(struct value v)
 {
-        switch (v.type) {
+        switch (v.type.type) {
         case VAL_INTEGER:
                 printf("%d", v.as.integer);
                 return;
@@ -155,7 +155,7 @@ struct value
 value_from_c_int(int i)
 {
         struct value v;
-        v.type = VAL_INTEGER;
+        v.type.type = VAL_INTEGER;
         v.as.integer = i;
         return v;
 }
@@ -164,7 +164,7 @@ struct value
 value_from_c_bool(int b)
 {
         struct value v;
-        v.type = VAL_BOOLEAN;
+        v.type.type = VAL_BOOLEAN;
         v.as.boolean = !!b;
         return v;
 }
@@ -205,7 +205,7 @@ struct value
 value_from_token(struct token token)
 {
         struct value v;
-        v.type = VAL_STRING;
+        v.type.type = VAL_STRING;
         v.as.string = value_string_from_token(token);
         return v;
 }
@@ -214,7 +214,7 @@ struct value
 value_from_c_string(char *str)
 {
         struct value v;
-        v.type = VAL_STRING;
+        v.type.type = VAL_STRING;
         v.as.string = copy_string(str, strlen(str));
         return v;
 }
@@ -222,7 +222,7 @@ value_from_c_string(char *str)
 int
 values_equal(struct value val0, struct value val1)
 {
-        switch (val0.type) {
+        switch (val0.type.type) {
         case VAL_INTEGER:
                 return val0.as.integer == val1.as.integer;
         case VAL_BOOLEAN:
@@ -236,9 +236,19 @@ values_equal(struct value val0, struct value val1)
 }
 
 int
+types_comparable(struct type lefttype, struct type righttype)
+{
+        if (lefttype.type != righttype.type)
+                return 0;
+        if (lefttype.type != VAL_STRING && lefttype.type != VAL_INTEGER)
+                return 0;
+        return 1;
+}
+
+int
 compare_values(struct value val0, struct value val1)
 {
-        switch (val0.type) {
+        switch (val0.type.type) {
                 case VAL_STRING:
                         return memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length);
                 case VAL_INTEGER:
