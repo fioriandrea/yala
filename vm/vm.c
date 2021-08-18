@@ -8,6 +8,7 @@ vm_init(struct vm *vm, struct bytecode *code)
 {
         vm->code = code;
         vm->sp = vm->stack;
+        vm->asp = vm->astack;
         vm->ip = 0;
 }
 
@@ -27,6 +28,19 @@ static struct value
 popv(struct vm *vm)
 {
         return *--vm->sp;
+}
+
+static void
+pusha(struct vm *vm, struct value val)
+{
+        *vm->asp++ = val;
+}
+
+static void
+popa(struct vm *vm) {
+        vm->asp--;
+        while (vm->asp > vm->astack && vm->asp->type.type != VAL_VECTOR)
+                vm->asp--;
 }
 
 static struct value
@@ -70,9 +84,7 @@ vm_run(struct vm *vm)
         current = advance_ip(vm);
         switch (current) {
         case OP_LOCI:
-                arg0 = advance_ip(vm);
-                pushv(vm, bytecode_constant_at(vm->code, arg0));
-                break;
+        case OP_LOCV:
         case OP_LOCS:
                 arg0 = advance_ip(vm);
                 pushv(vm, bytecode_constant_at(vm->code, arg0));
@@ -158,7 +170,20 @@ vm_run(struct vm *vm)
                 }
                 break;
         case OP_POPV:
-                popv(vm);
+                val0 = popv(vm);
+                if (val0.type.type == VAL_VECTOR) {
+                        popa(vm);
+                }
+                break;
+        case OP_POP_TO_ASTACK:
+                val0 = popv(vm);
+                pusha(vm, val0);
+                break;
+        case OP_END_VEC:
+                arg0 = advance_ip(vm);
+                vm->code->constants.buffer[arg0].as.vector.astackent = vm->asp;
+                pusha(vm, bytecode_constant_at(vm->code, arg0));
+                pushv(vm, bytecode_constant_at(vm->code, arg0));
                 break;
         case OP_NEWLINE:
                 printf("\n");

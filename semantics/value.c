@@ -147,15 +147,23 @@ value_print(struct value v)
         case VAL_STRING:
                 printf("%.*s", v.as.string.length, v.as.string.str);
                 return;
+        case VAL_VECTOR:
+                printf("[");
+                for (int i = 0; i < v.as.vector.size; i++) {
+                        value_print(*(v.as.vector.astackent - v.as.vector.size + i));
+                        printf(i == v.as.vector.size - 1 ? "" : ", ");
+                }
+                printf("]");
+                return;
         }
-        printf("unreachable value type %d", v.type);
+        printf("unreachable value type %d", v.type.type);
 }
 
 struct value
 value_from_c_int(int i)
 {
         struct value v;
-        v.type.type = VAL_INTEGER;
+        v.type = scalar_type(VAL_INTEGER);
         v.as.integer = i;
         return v;
 }
@@ -164,7 +172,7 @@ struct value
 value_from_c_bool(int b)
 {
         struct value v;
-        v.type.type = VAL_BOOLEAN;
+        v.type = scalar_type(VAL_BOOLEAN);
         v.as.boolean = !!b;
         return v;
 }
@@ -214,9 +222,21 @@ struct value
 value_from_c_string(char *str)
 {
         struct value v;
-        v.type.type = VAL_STRING;
+        v.type = scalar_type(VAL_STRING);
         v.as.string = copy_string(str, strlen(str));
         return v;
+}
+
+struct type
+scalar_type(enum value_type vt)
+{
+
+        struct type type;
+        type.type = vt;
+        type.base = vt;
+        type.rank = 0;
+        type.size = 1;
+        return type;
 }
 
 int
@@ -231,6 +251,14 @@ values_equal(struct value val0, struct value val1)
                 if (val0.as.string.hash != val1.as.string.hash)
                         return 0;
                 return val0.as.string.length == val1.as.string.length && memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length) == 0;
+        case VAL_VECTOR:
+                for (int i = 0; i < val0.as.vector.size; i++) {
+                        struct value ent0 = val0.as.vector.astackent[-i - 1];
+                        struct value ent1 = val1.as.vector.astackent[-i - 1];
+                        if (!values_equal(ent0, ent1))
+                                return 0;
+                }
+                return 1;
         }
         return -1;
 }
@@ -253,5 +281,36 @@ compare_values(struct value val0, struct value val1)
                         return memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length);
                 case VAL_INTEGER:
                         return val0.as.integer - val1.as.integer;
+                default:
+                        printf("unreachable code at compare_values (val0 type %d)", val0.type.type);
+                        return 0;
+        }
+}
+
+int
+type_equal(struct type type0, struct type type1)
+{
+        if (type0.type != type1.type)
+                return 0;
+        if (type0.type != VAL_VECTOR)
+                return 1;
+        return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
+}
+
+void
+type_print(struct type type)
+{
+        switch (type.type) {
+                case VAL_STRING: printf("VAL_STRING"); return;
+                case VAL_BOOLEAN: printf("VAL_BOOLEAN"); return;
+                case VAL_INTEGER: printf("VAL_INTEGER"); return;
+                case VAL_VECTOR: {
+                        for (int i = 0; i < type.rank; i++) {
+                                printf("%d ", type.dimensions[i]);
+                        }
+                        printf("of ");
+                        type_print(scalar_type(type.base));
+                        return;
+                }
         }
 }

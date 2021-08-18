@@ -13,6 +13,7 @@
 enum opcode {
         OP_LOCI, /* constants */
         OP_LOCS,
+        OP_LOCV,
 
         OP_ADDI, /* integer arithmetic */
         OP_SUBI,
@@ -42,6 +43,9 @@ enum opcode {
         OP_WRITE,
         OP_NEWLINE,
 
+        OP_POP_TO_ASTACK, /* array stack manipulation */
+        OP_END_VEC,
+
         OP_HALT,
 };
 
@@ -51,12 +55,17 @@ enum value_type {
         VAL_INTEGER,
         VAL_BOOLEAN,
         VAL_STRING,
+        VAL_VECTOR,
 };
+
+#define MAX_VECTOR_DIMENSIONS 50
 
 struct type {
         enum value_type type;
-        union {
-        } additional;
+        enum value_type base;
+        int dimensions[MAX_VECTOR_DIMENSIONS];
+        int rank;
+        int size;
 };
 
 struct value_string {
@@ -65,8 +74,10 @@ struct value_string {
         unsigned long hash;
 };
 
-struct value_string
-value_string_from_token(struct token token);
+struct value_vector {
+        struct value *astackent;
+        int size;
+};
 
 struct value {
         struct type type;
@@ -74,6 +85,7 @@ struct value {
                 int integer;
                 int boolean;
                 struct value_string string;
+                struct value_vector vector;
         } as;
 };
 
@@ -87,6 +99,9 @@ struct value value_from_c_string(char *str);
 int values_equal(struct value val0, struct value val1);
 int types_comparable(struct type lefttype, struct type righttype);
 int compare_values(struct value val0, struct value val1);
+int type_equal(struct type type0, struct type type1);
+struct type scalar_type(enum value_type vt);
+void type_print(struct type type);
 
 struct lineinfo {
         int line;

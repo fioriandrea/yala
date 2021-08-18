@@ -323,6 +323,16 @@ type_label(struct parser *ps)
                 return new_tree_node_at_previous(ps, NODE_INTEGER_TYPE);
         case TOKEN_BOOLEAN:
                 return new_tree_node_at_previous(ps, NODE_BOOLEAN_TYPE);
+        case TOKEN_VECTOR: {
+                struct tree_node *toret = new_tree_node_at_previous(ps, NODE_VECTOR_TYPE);
+                eat_error(ps, TOKEN_LSQUARE);
+                eat_error(ps, TOKEN_INTEGERLIT);
+                toret->left = new_tree_node_at_previous(ps, NODE_INTGER_CONST);
+                eat_error(ps, TOKEN_RSQUARE);
+                eat_error(ps, TOKEN_OF);
+                toret->right = type_label(ps);
+                return toret;
+        }
         default:
                 parse_error(ps, ps->previous, "unrecognized type");
                 return NULL;

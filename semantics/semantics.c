@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "semantics.h"
 
@@ -16,6 +17,7 @@ static void emit_pop_scope(struct environment *env, struct tree_node *node);
 static void emit_push_scope(struct environment *env, struct tree_node *node);
 static int emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen);
 static void emit_constant(struct environment *env, struct tree_node *root, struct value val);
+static struct type emit_vector_constant(struct environment *env, struct tree_node *root, int depth);
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
 static void emit_two_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1);
 static void emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2);
@@ -27,7 +29,8 @@ static uint8_t right_byte(uint16_t word);
 static uint8_t left_byte(uint16_t word);
 static int parse_boolean_token(struct token token);
 static int parse_integer_token(struct token token);
-static struct type type_node_to_type(struct tree_node *node);
+static struct type type_node_to_type(struct environment *env, struct tree_node *node);
+static struct type vector_type_node_to_type(struct environment *env, struct tree_node *node);
 static void semantics_error(struct environment *env, struct tree_node *root, char *fmt, ...);
 
 struct bytecode *
@@ -39,6 +42,7 @@ generate_bytecode(struct tree_node *parsetree)
         environment_init(&env, code);
         emit_statement(&env, parsetree);
         if (env.error) {
+                /* OK leak, the OS will take care of this */
                 return NULL;
         }
         emit_byte(&env, parsetree, OP_HALT);
@@ -49,9 +53,7 @@ void
 emit_statement(struct environment *env, struct tree_node *root)
 {
         struct tree_node *node;
-        struct type lefttype, righttype;
-        struct local local;
-        int localindex, count;
+        int count;
         switch (root->type) {
         case NODE_STAT_LIST:
                 emit_push_scope(env, root);
@@ -65,7 +67,7 @@ emit_statement(struct environment *env, struct tree_node *root)
         case NODE_VAR_DECL:
                 node = root->left->child;
                 while (node != NULL) {
-                        emit_declare_local(env, node, type_node_to_type(root->right), LOCAL_PERM_RW);
+                        emit_declare_local(env, node, type_node_to_type(env, root->right), LOCAL_PERM_RW);
                         node = node->next;
                 }
                 return;
@@ -130,7 +132,9 @@ emit_expression(struct environment *env, struct tree_node *root)
         struct local local;
         struct bytecode *code = env->code;
         int codelen, localindex;
-        inttype.type = VAL_INTEGER;
+        inttype = scalar_type(VAL_INTEGER);
+        booltype = scalar_type(VAL_BOOLEAN);
+        strtype = scalar_type(VAL_STRING);
         booltype.type = VAL_BOOLEAN;
         strtype.type = VAL_STRING;
         switch (root->type) {
@@ -207,7 +211,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_NEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && lefttype.type != righttype.type) {
+                if (!env->error && !type_equal(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
@@ -216,7 +220,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_EQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!env->error && lefttype.type != righttype.type) {
+                if (!env->error && !type_equal(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
@@ -276,6 +280,8 @@ emit_expression(struct environment *env, struct tree_node *root)
                 }
                 emit_constant(env, root, value_from_token(root->value));
                 return strtype;
+        case NODE_VECTOR_CONST:
+                return emit_vector_constant(env, root, 0);
         case NODE_ID:
                 if ((localindex = environment_local_get(env, root->value, &local)) < 0) {
                         semantics_error(env, root, "undefined variable");
@@ -382,23 +388,50 @@ emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen
 }
 
 static struct type
-type_node_to_type(struct tree_node *node)
+type_node_to_type(struct environment *env, struct tree_node *node)
 {
         struct type type;
         switch (node->type) {
-                case NODE_STRING_TYPE:
-                type.type = VAL_STRING;
+        case NODE_STRING_TYPE:
+                type = scalar_type(VAL_STRING);
                 break;
-                case NODE_INTEGER_TYPE:
-                type.type = VAL_INTEGER;
+        case NODE_INTEGER_TYPE:
+                type = scalar_type(VAL_INTEGER);
                 break;
-                case NODE_BOOLEAN_TYPE:
-                type.type = VAL_BOOLEAN;
+        case NODE_BOOLEAN_TYPE:
+                type = scalar_type(VAL_BOOLEAN);
                 break;
-                default:
+        case NODE_VECTOR_TYPE:
+                return vector_type_node_to_type(env, node);
+        default:
                 printf("unreachable code in type_node_to_type\n");
         }
         return type;
+}
+
+static struct type
+vector_type_node_to_type(struct environment *env, struct tree_node *node)
+{
+        struct type type;
+        type.type = VAL_VECTOR;
+        type.size = parse_integer_token(node->left->value);
+        type.dimensions[0] = type.size;
+        type.rank = 1;
+
+        struct type inside = type_node_to_type(env, node->right);
+        type.base = inside.type;
+        if (inside.type == VAL_VECTOR) {
+                for (int i = 0; i < inside.rank; i++) {
+                        if (type.rank == MAX_VECTOR_DIMENSIONS - 1) {
+                                semantics_error(env, node, "maximum vector rank exceeded");
+                                break;
+                        }
+                        type.dimensions[type.rank++] = inside.dimensions[i];
+                        type.size += inside.dimensions[i];
+                }
+                type.base = inside.base;
+        }
+        return type; 
 }
 
 static void
@@ -472,12 +505,12 @@ emit_declare_local(struct environment *env, struct tree_node *current, struct ty
 {
         if (env->count == MAX_LOCALS) {
                 semantics_error(env, current, "maximum number of local variables exceeded");
-                return;
+                return 0;
         }
         struct local local;
         if (environment_local_get(env, current->value, &local) >= 0 && local.depth == env->depth) {
                 semantics_error(env, current, "variable already declared");
-                return;
+                return 0;
         }
         emit_variable_default(env, current, type);
         init_local(&env->locals[env->count], current->value, type, env->depth, perms);
@@ -525,7 +558,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
 static void
 emit_while_statement(struct environment *env, struct tree_node *root)
 {
-        int codelen, offsetback, startlen;
+        int codelen, startlen;
         struct type type1;
         struct bytecode *code = env->code;
         startlen = bytes_len(&code->code);
@@ -546,7 +579,7 @@ emit_while_statement(struct environment *env, struct tree_node *root)
 static void
 emit_repeat_statement(struct environment *env, struct tree_node *root)
 {
-        int codelen, offsetback, startlen;
+        int startlen;
         struct type type1;
         struct bytecode *code = env->code;
         startlen = bytes_len(&code->code);
@@ -560,7 +593,7 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
         }
 
         emit_three_bytes(env, root->right, OP_SKIPF_LONG, 0, 1);
-        codelen = bytes_len(&code->code);
+        bytes_len(&code->code);
         emit_skip_back_long(env, root->right, startlen);
 }
 
@@ -592,7 +625,6 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         struct tree_node *assign = root->left;
         struct tree_node *condition = assign->next;
         struct tree_node *statlist = root->right;
-        struct tree_node increment;
 
         struct token forcond_token;
         forcond_token.type = TOKEN_ID;
@@ -626,7 +658,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         }
         emit_three_bytes(env, &forcond_node, OP_SET_LOCAL_LONG, left_byte(forcond_index), right_byte(forcond_index));
 
-        int codelen, offsetback, startlen;
+        int codelen, startlen;
         struct bytecode *code = env->code;
         startlen = bytes_len(&code->code);
         emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
@@ -695,6 +727,54 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
         return type0;
 }
 
+static struct type
+emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
+{
+        struct type toret;
+        if (root->type != NODE_VECTOR_CONST) {
+                toret = emit_expression(env, root);
+                emit_byte(env, root, OP_POP_TO_ASTACK);
+                return toret;
+        }
+
+        struct type type;
+        type.base = VAL_INTEGER;
+        int size = 0;
+        if (root->child != NULL) {
+                type = emit_vector_constant(env, root->child, depth + 1);
+                toret.rank = type.rank + 1;
+                memcpy(toret.dimensions, type.dimensions, sizeof(toret.dimensions));
+                toret.base = type.base;
+                size = type.size;
+                toret.dimensions[toret.rank - 1] = 1;
+
+                for (struct tree_node *node = root->child->next; node != NULL; node = node->next) {
+                        struct type current_type = emit_vector_constant(env, node, depth + 1);
+                        if (!type_equal(type, current_type)) {
+                                semantics_error(env, node, "vector elements must be homogeneous");
+                                break;
+                        }
+                        size += type.size;
+                        toret.dimensions[toret.rank - 1]++;
+                }       
+        }
+
+        toret.type = VAL_VECTOR;
+        toret.size = size;
+
+        if (depth != 0)
+                return toret;
+
+        emit_byte(env, root, OP_END_VEC);
+        struct value val;
+        val.type = toret;
+        val.as.vector.size = size;
+        val.as.vector.astackent = NULL;
+        emit_constant(env, root, val);
+
+        return toret;
+}
+
 static int
 parse_boolean_token(struct token token)
 {
@@ -717,29 +797,32 @@ char *
 opcodestring(enum opcode code)
 {
         switch (code) {
+        case OP_ADDI: return "OP_ADDI";
+        case OP_DIVI: return "OP_DIVI";
+        case OP_END_VEC: return "OP_END_VEC";
+        case OP_EQUA: return "OP_EQUA";
+        case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
+        case OP_HALT: return "OP_HALT";
+        case OP_IGRTEQ: return "OP_IGRTEQ";
+        case OP_IGRT: return "OP_IGRT";
+        case OP_ILEQ: return "OP_ILEQ";
+        case OP_ILT: return "OP_ILT";
         case OP_LOCI: return "OP_LOCI";
         case OP_LOCS: return "OP_LOCS";
-        case OP_ADDI: return "OP_ADDI";
-        case OP_SUBI: return "OP_SUBI";
+        case OP_LOCV: return "OP_LOCV";
         case OP_MULI: return "OP_MULI";
-        case OP_DIVI: return "OP_DIVI";
-        case OP_IGRT: return "OP_IGRT";
-        case OP_IGRTEQ: return "OP_IGRTEQ";
-        case OP_ILT: return "OP_ILT";
-        case OP_ILEQ: return "OP_ILEQ";
-        case OP_EQUA: return "OP_EQUA";
-        case OP_NOT: return "OP_NOT";
-        case OP_SKIP_LONG: return "OP_SKIP_LONG";
-        case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
-        case OP_ZERO: return "OP_ZERO";
-        case OP_ONE: return "OP_ONE";
-        case OP_POPV: return "OP_POPV";
-        case OP_WRITE: return "OP_WRITE";
         case OP_NEWLINE: return "OP_NEWLINE";
+        case OP_NOT: return "OP_NOT";
+        case OP_ONE: return "OP_ONE";
+        case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
+        case OP_POPV: return "OP_POPV";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
-        case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
         case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
-        case OP_HALT: return "OP_HALT";
+        case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
+        case OP_SKIP_LONG: return "OP_SKIP_LONG";
+        case OP_SUBI: return "OP_SUBI";
+        case OP_WRITE: return "OP_WRITE";
+        case OP_ZERO: return "OP_ZERO";
         }
         return "unreachable return in opcodestring";
 }
@@ -756,6 +839,16 @@ disassemble_constant(struct bytecode *code, int ip)
         uint8_t constantaddr = bytes_at(&code->code, ip++);
         struct value val = valuelist_at(&code->constants, constantaddr);
         value_print(val);
+        printf(" ");
+        return ip;
+}
+
+static int
+disassemble_constant_vector(struct bytecode *code, int ip)
+{
+        uint8_t constantaddr = bytes_at(&code->code, ip++);
+        struct value val = valuelist_at(&code->constants, constantaddr);
+        type_print(val.type);
         printf(" ");
         return ip;
 }
@@ -789,6 +882,10 @@ disassemble(struct bytecode *code)
                 case OP_LOCI:
                 case OP_LOCS:
                         ip = disassemble_constant(code, ip);
+                        break;
+                case OP_LOCV:
+                case OP_END_VEC:
+                        ip = disassemble_constant_vector(code, ip);
                         break;
                 case OP_SKIP_BACK_LONG:
                 case OP_SKIP_LONG:
