@@ -59,6 +59,8 @@ static struct tree_node *grouping_expr(struct parser *ps);
 static struct tree_node *conditional_expr(struct parser *ps);
 struct tree_node *id_expr(struct parser *ps);
 static struct tree_node *dispatch_id_expr(struct parser *ps);
+struct tree_node *idexing_expr(struct parser *ps, struct tree_node *indexed);
+struct tree_node *call_expr(struct parser *ps, struct tree_node *called);
 static struct tree_node *expr_list(struct parser *ps);
 
 struct tree_node *
@@ -550,27 +552,44 @@ static struct tree_node *
 dispatch_id_expr(struct parser *ps)
 {
         struct tree_node *res = id_expr(ps);
-        if (!eat(ps, TOKEN_LPAREN) && !eat(ps, TOKEN_LSQUARE))
+        if (!check(ps, TOKEN_LPAREN) && !check(ps, TOKEN_LSQUARE))
                 return res;
-        struct token op = ps->previous;
-        res = new_binary_node(res, op, NULL);
-        struct tree_node **pp = &res->right;
-        do {
+        while (eat(ps, TOKEN_LPAREN) || eat(ps, TOKEN_LSQUARE)) {
+                struct token op = ps->previous;
                 switch (op.type) {
-                case TOKEN_LPAREN:
-                        *pp = expr_list(ps);
-                        pp = &(*pp)->next;
-                        eat_error(ps, TOKEN_RPAREN);
-                        break;
                 case TOKEN_LSQUARE:
-                        *pp = expr(ps);
-                        pp = &(*pp)->next;
-                        eat_error(ps, TOKEN_RSQUARE);
+                        res = idexing_expr(ps, res);
+                        break;
+                case TOKEN_LPAREN:
+                        res = call_expr(ps, res);
                         break;
                 default:
                         break;
                 }
-        } while (eat(ps, TOKEN_LPAREN) || eat(ps, TOKEN_LSQUARE));
+        } ;
+        return res;
+}
+
+struct tree_node *
+idexing_expr(struct parser *ps, struct tree_node *indexed)
+{
+        struct tree_node *res = new_binary_node(indexed, ps->previous, NULL);
+        struct tree_node **pp = &res->right;
+        do {
+                *pp = expr(ps);
+                pp = &(*pp)->next;
+                eat_error(ps, TOKEN_RSQUARE);
+        } while (eat(ps, TOKEN_LSQUARE));
+        return res;
+}
+
+struct tree_node *
+call_expr(struct parser *ps, struct tree_node *called)
+{
+        struct tree_node *res = new_binary_node(called, ps->previous, NULL);
+        if (!check(ps, TOKEN_RPAREN))
+                res->right = expr_list(ps);
+        eat_error(ps, TOKEN_RPAREN);
         return res;
 }
 
