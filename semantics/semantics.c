@@ -5,32 +5,33 @@
 
 #include "semantics.h"
 
-static struct type emit_cond_expr(struct environment *env, struct tree_node *root);
+static struct semantic_type emit_cond_expr(struct environment *env, struct tree_node *root);
 static void emit_for_statement(struct environment *env, struct tree_node *root);
 static void emit_assign_statement(struct environment *env, struct tree_node *root);
 static void emit_repeat_statement(struct environment *env, struct tree_node *root);
 static void emit_while_statement(struct environment *env, struct tree_node *root);
 static void emit_if_statement(struct environment *env, struct tree_node *root);
-static int emit_declare_local(struct environment *env, struct tree_node *current, struct type type, uint8_t perms);
-static void emit_variable_default(struct environment *env, struct tree_node *node, struct type type);
+static int emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms);
+static void emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type);
+static void emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type);
 static void emit_pop_scope(struct environment *env, struct tree_node *node);
 static void emit_push_scope(struct environment *env, struct tree_node *node);
 static int emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen);
 static void emit_constant(struct environment *env, struct tree_node *root, struct value val);
-static struct type emit_vector_constant(struct environment *env, struct tree_node *root, int depth);
+static struct semantic_type emit_vector_constant(struct environment *env, struct tree_node *root, int depth);
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
 static void emit_two_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1);
 static void emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2);
 static int patch_skip_long(struct environment *env, struct tree_node *root, int codelen);
 static void environment_init(struct environment *env, struct bytecode *code);
 static int environment_local_get(struct environment *env, struct token name, struct local *local);
-static void init_local(struct local *loc, struct token name, struct type type, int depth, uint8_t perms);
+static void init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
 static uint8_t right_byte(uint16_t word);
 static uint8_t left_byte(uint16_t word);
 static int parse_boolean_token(struct token token);
 static int parse_integer_token(struct token token);
-static struct type type_node_to_type(struct environment *env, struct tree_node *node);
-static struct type vector_type_node_to_type(struct environment *env, struct tree_node *node);
+static struct semantic_type type_node_to_type(struct environment *env, struct tree_node *node);
+static struct semantic_type vector_type_node_to_type(struct environment *env, struct tree_node *node);
 static void semantics_error(struct environment *env, struct tree_node *root, char *fmt, ...);
 
 struct bytecode *
@@ -124,17 +125,17 @@ emit_statement(struct environment *env, struct tree_node *root)
         }
 }
 
-struct type
+struct semantic_type
 emit_expression(struct environment *env, struct tree_node *root)
 {
-        struct type lefttype, righttype;
-        struct type inttype, booltype, strtype;
+        struct semantic_type lefttype, righttype;
+        struct semantic_type inttype, booltype, strtype;
         struct local local;
         struct bytecode *code = env->code;
         int codelen, localindex;
-        inttype = scalar_type(VAL_INTEGER);
-        booltype = scalar_type(VAL_BOOLEAN);
-        strtype = scalar_type(VAL_STRING);
+        inttype = scalar_semantic_type(VAL_INTEGER);
+        booltype = scalar_semantic_type(VAL_BOOLEAN);
+        strtype = scalar_semantic_type(VAL_STRING);
         booltype.type = VAL_BOOLEAN;
         strtype.type = VAL_STRING;
         switch (root->type) {
@@ -211,7 +212,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_NEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!type_equal(lefttype, righttype)) {
+                if (!semantic_type_equal(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
@@ -220,7 +221,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_EQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (!type_equal(lefttype, righttype)) {
+                if (!semantic_type_equal(lefttype, righttype)) {
                         semantics_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
@@ -387,19 +388,19 @@ emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen
         return 1;
 }
 
-static struct type
+static struct semantic_type
 type_node_to_type(struct environment *env, struct tree_node *node)
 {
-        struct type type;
+        struct semantic_type type;
         switch (node->type) {
         case NODE_STRING_TYPE:
-                type = scalar_type(VAL_STRING);
+                type = scalar_semantic_type(VAL_STRING);
                 break;
         case NODE_INTEGER_TYPE:
-                type = scalar_type(VAL_INTEGER);
+                type = scalar_semantic_type(VAL_INTEGER);
                 break;
         case NODE_BOOLEAN_TYPE:
-                type = scalar_type(VAL_BOOLEAN);
+                type = scalar_semantic_type(VAL_BOOLEAN);
                 break;
         case NODE_VECTOR_TYPE:
                 return vector_type_node_to_type(env, node);
@@ -409,16 +410,16 @@ type_node_to_type(struct environment *env, struct tree_node *node)
         return type;
 }
 
-static struct type
+static struct semantic_type
 vector_type_node_to_type(struct environment *env, struct tree_node *node)
 {
-        struct type type;
+        struct semantic_type type;
         type.type = VAL_VECTOR;
         type.meta.vector.size = parse_integer_token(node->left->value);
         type.meta.vector.dimensions[0] = type.meta.vector.size;
         type.meta.vector.rank = 1;
 
-        struct type inside = type_node_to_type(env, node->right);
+        struct semantic_type inside = type_node_to_type(env, node->right);
         type.meta.vector.base = inside.meta.vector.base;
         if (inside.type == VAL_VECTOR) {
                 for (int i = 0; i < inside.meta.vector.rank; i++) {
@@ -473,7 +474,7 @@ emit_pop_scope(struct environment *env, struct tree_node *node)
 }
 
 static void
-emit_variable_default(struct environment *env, struct tree_node *node, struct type type)
+emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type)
 {
         switch (type.type) {
         case VAL_BOOLEAN:
@@ -489,18 +490,22 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct ty
                 emit_constant(env, node, value_from_c_string(""));
                 break;
         case VAL_VECTOR: {
-                emit_byte(env, node, OP_LOCV);
+                for (int i = 0; i < type.meta.vector.size; i++) {
+                        emit_byte(env, node, OP_ZERO);
+                        emit_byte(env, node, OP_POP_TO_ASTACK);
+                }
+                emit_byte(env, node, OP_PATCH_VEC);
                 struct value val;
-                val.type = type;
-                val.as.vector.size = type.meta.vector.size;
+                val.type = semantic_type_to_run_type(type);
                 emit_constant(env, node, val);
+                emit_vector_type(env, node, type);
                 break;
         }
         }
 }
 
 static void
-init_local(struct local *loc, struct token name, struct type type, int depth, uint8_t perms)
+init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms)
 {
         loc->name = name;
         loc->type = type;
@@ -509,7 +514,7 @@ init_local(struct local *loc, struct token name, struct type type, int depth, ui
 }
 
 static int
-emit_declare_local(struct environment *env, struct tree_node *current, struct type type, uint8_t perms)
+emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms)
 {
         if (env->count == MAX_LOCALS) {
                 semantics_error(env, current, "maximum number of local variables exceeded");
@@ -532,7 +537,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
         int codelen, *toendp;
         toendp = toendlens;
         struct tree_node *child;
-        struct type type1;
+        struct semantic_type type1;
         struct bytecode *code = env->code;
         child = root->child;
         while (child != NULL && child->type == NODE_CONDITION_AND_STATEMENT) {
@@ -567,7 +572,7 @@ static void
 emit_while_statement(struct environment *env, struct tree_node *root)
 {
         int codelen, startlen;
-        struct type type1;
+        struct semantic_type type1;
         struct bytecode *code = env->code;
         startlen = bytes_len(&code->code);
         type1 = emit_expression(env, root->left);
@@ -588,7 +593,7 @@ static void
 emit_repeat_statement(struct environment *env, struct tree_node *root)
 {
         int startlen;
-        struct type type1;
+        struct semantic_type type1;
         struct bytecode *code = env->code;
         startlen = bytes_len(&code->code);
 
@@ -608,7 +613,7 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
 static void
 emit_assign_statement(struct environment *env, struct tree_node *root)
 {
-        struct type righttype;
+        struct semantic_type righttype;
         int localindex;
         struct local local;
 
@@ -651,14 +656,14 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         
         emit_push_scope(env, root);
 
-        struct type inttype;
+        struct semantic_type inttype;
         inttype.type = VAL_INTEGER;
         int incindex = emit_declare_local(env, assign->left, inttype, LOCAL_PERM_RW);
         emit_assign_statement(env, assign);
         env->locals[env->count - 1].perms = LOCAL_PERM_R;
 
         int forcond_index = emit_declare_local(env, &forcond_node, inttype, LOCAL_PERM_R);
-        struct type type1;
+        struct semantic_type type1;
         type1 = emit_expression(env, condition->right);
         if (type1.type != VAL_INTEGER) {
                 semantics_error(env, condition->right, "for loop upper range must be an integer");
@@ -687,14 +692,14 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         emit_pop_scope(env, root);
 }
 
-static struct type
+static struct semantic_type
 emit_cond_expr(struct environment *env, struct tree_node *root)
 {
         int toendlens[MAX_CONDITIONAL_LEN];
         int codelen, *toendp;
         toendp = toendlens;
         struct tree_node *child;
-        struct type type0, type1;
+        struct semantic_type type0, type1;
         struct bytecode *code = env->code;
         child = root->child;
         while (child != NULL && child->type == NODE_CONDITION_AND_EXPRESSION) {
@@ -735,30 +740,30 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
         return type0;
 }
 
-static struct type
+static struct semantic_type
 emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
 {
-        struct type toret;
+        struct semantic_type toret;
         if (root->type != NODE_VECTOR_CONST) {
                 toret = emit_expression(env, root);
                 emit_byte(env, root, OP_POP_TO_ASTACK);
                 return toret;
         }
 
-        struct type type;
+        struct semantic_type type;
         type.meta.vector.base = VAL_INTEGER;
         int size = 0;
         if (root->child != NULL) {
                 type = emit_vector_constant(env, root->child, depth + 1);
                 toret.meta.vector.rank = type.meta.vector.rank + 1;
-                memcpy(toret.meta.vector.dimensions, type.meta.vector.dimensions, sizeof(toret.meta.vector.dimensions));
+                memcpy(toret.meta.vector.dimensions, type.meta.vector.dimensions, MAX_VECTOR_DIMENSIONS);
                 toret.meta.vector.base = type.meta.vector.base;
                 size = type.meta.vector.size;
                 toret.meta.vector.dimensions[toret.meta.vector.rank - 1] = 1;
 
                 for (struct tree_node *node = root->child->next; node != NULL; node = node->next) {
-                        struct type current_type = emit_vector_constant(env, node, depth + 1);
-                        if (!type_equal(type, current_type)) {
+                        struct semantic_type current_type = emit_vector_constant(env, node, depth + 1);
+                        if (!semantic_type_equal(type, current_type)) {
                                 semantics_error(env, node, "vector elements must be homogeneous");
                                 break;
                         }
@@ -772,15 +777,28 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
 
         if (depth != 0)
                 return toret;
+        
 
-        emit_byte(env, root, OP_END_VEC);
+        emit_byte(env, root, OP_PATCH_VEC);
         struct value val;
-        val.type = toret;
-        val.as.vector.size = size;
+        val.type = semantic_type_to_run_type(toret);
         val.as.vector.astackent = NULL;
         emit_constant(env, root, val);
 
+        emit_vector_type(env, root, toret);
+
         return toret;
+}
+
+static void emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type)
+{
+        for (int i = type.meta.vector.rank - 1; i >= 0; i--) {
+                emit_byte(env, root, OP_LOCI);
+                emit_constant(env, root, value_from_c_int(type.meta.vector.dimensions[i]));
+        }
+        emit_byte(env, root, OP_LOCI);
+        emit_constant(env, root, value_from_c_int(type.meta.vector.rank));
+        emit_byte(env, root, OP_VEC_TYPE);
 }
 
 static int
@@ -807,7 +825,7 @@ opcodestring(enum opcode code)
         switch (code) {
         case OP_ADDI: return "OP_ADDI";
         case OP_DIVI: return "OP_DIVI";
-        case OP_END_VEC: return "OP_END_VEC";
+        case OP_PATCH_VEC: return "OP_END_VEC";
         case OP_EQUA: return "OP_EQUA";
         case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
         case OP_HALT: return "OP_HALT";
@@ -817,7 +835,6 @@ opcodestring(enum opcode code)
         case OP_ILT: return "OP_ILT";
         case OP_LOCI: return "OP_LOCI";
         case OP_LOCS: return "OP_LOCS";
-        case OP_LOCV: return "OP_LOCV";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
@@ -829,6 +846,7 @@ opcodestring(enum opcode code)
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
         case OP_SKIP_LONG: return "OP_SKIP_LONG";
         case OP_SUBI: return "OP_SUBI";
+        case OP_VEC_TYPE: return "OP_VEC_TYPE";
         case OP_WRITE: return "OP_WRITE";
         case OP_ZERO: return "OP_ZERO";
         }
@@ -846,7 +864,10 @@ disassemble_constant(struct bytecode *code, int ip)
 {
         uint8_t constantaddr = bytes_at(&code->code, ip++);
         struct value val = valuelist_at(&code->constants, constantaddr);
-        value_print(val);
+        if (val.type.type != VAL_VECTOR)
+                value_print(val);
+        else
+                printf("%s", value_type_to_string(val.type.type));
         printf(" ");
         return ip;
 }
@@ -856,7 +877,7 @@ disassemble_constant_vector(struct bytecode *code, int ip)
 {
         uint8_t constantaddr = bytes_at(&code->code, ip++);
         struct value val = valuelist_at(&code->constants, constantaddr);
-        type_print(val.type);
+        run_type_print(val.type);
         printf(" ");
         return ip;
 }
@@ -891,8 +912,7 @@ disassemble(struct bytecode *code)
                 case OP_LOCS:
                         ip = disassemble_constant(code, ip);
                         break;
-                case OP_LOCV:
-                case OP_END_VEC:
+                case OP_PATCH_VEC:
                         ip = disassemble_constant_vector(code, ip);
                         break;
                 case OP_SKIP_BACK_LONG:

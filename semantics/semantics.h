@@ -13,7 +13,6 @@
 enum opcode {
         OP_LOCI, /* constants */
         OP_LOCS,
-        OP_LOCV,
 
         OP_ADDI, /* integer arithmetic */
         OP_SUBI,
@@ -44,7 +43,9 @@ enum opcode {
         OP_NEWLINE,
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
-        OP_END_VEC,
+        OP_PATCH_VEC,
+
+        OP_VEC_TYPE,
 
         OP_HALT,
 };
@@ -60,7 +61,7 @@ enum value_type {
 
 #define MAX_VECTOR_DIMENSIONS 50
 
-struct type {
+struct semantic_type {
         enum value_type type;
         union {
                 struct {
@@ -80,11 +81,21 @@ struct value_string {
 
 struct value_vector {
         struct value *astackent;
-        int size;
+};
+
+struct run_type {
+        enum value_type type;
+        union {
+                struct {
+                        int *dimensions;
+                        int rank;
+                        int size;
+                } vector;
+        } meta;
 };
 
 struct value {
-        struct type type;
+        struct run_type type;
         union {
                 int integer;
                 int boolean;
@@ -101,11 +112,14 @@ unsigned long hash_string(char *str, int length);
 struct value value_from_token(struct token token);
 struct value value_from_c_string(char *str);
 int values_equal(struct value val0, struct value val1);
-int types_comparable(struct type lefttype, struct type righttype);
+int types_comparable(struct semantic_type lefttype, struct semantic_type righttype);
 int compare_values(struct value val0, struct value val1);
-int type_equal(struct type type0, struct type type1);
-struct type scalar_type(enum value_type vt);
-void type_print(struct type type);
+int semantic_type_equal(struct semantic_type type0, struct semantic_type type1);
+struct run_type semantic_type_to_run_type(struct semantic_type st);
+struct semantic_type scalar_semantic_type(enum value_type vt);
+void semantic_type_print(struct semantic_type semantic_type);
+void run_type_print(struct run_type type);
+char * value_type_to_string(enum value_type vt);
 
 struct lineinfo {
         int line;
@@ -157,7 +171,7 @@ struct bytecode *generate_bytecode(struct tree_node *parsetree);
 
 struct local {
         struct token name;
-        struct type type;
+        struct semantic_type type;
         int depth;
         uint8_t perms;
 };
@@ -171,6 +185,6 @@ struct environment {
 };
 
 void emit_statement(struct environment *env, struct tree_node *root);
-struct type emit_expression(struct environment *env, struct tree_node *root);
+struct semantic_type emit_expression(struct environment *env, struct tree_node *root);
 
 #endif

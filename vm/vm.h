@@ -14,6 +14,8 @@ struct vm {
         struct value stack[STACK_MAX];
         struct value *asp;
         struct value astack[STACK_MAX];
+        int *dsp;
+        int dstack[STACK_MAX];
 };
 
 void vm_init(struct vm *vm, struct bytecode *code);

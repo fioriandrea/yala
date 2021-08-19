@@ -9,6 +9,7 @@ vm_init(struct vm *vm, struct bytecode *code)
         vm->code = code;
         vm->sp = vm->stack;
         vm->asp = vm->astack;
+        vm->dsp = vm->dstack;
         vm->ip = 0;
 }
 
@@ -41,6 +42,12 @@ popa(struct vm *vm) {
         vm->asp--;
         while (vm->asp > vm->astack && vm->asp->type.type != VAL_VECTOR)
                 vm->asp--;
+}
+
+static void
+pushd(struct vm *vm, int i)
+{
+        *vm->dsp++ = i;
 }
 
 static struct value
@@ -84,7 +91,6 @@ vm_run(struct vm *vm)
         current = advance_ip(vm);
         switch (current) {
         case OP_LOCI:
-        case OP_LOCV:
         case OP_LOCS:
                 arg0 = advance_ip(vm);
                 pushv(vm, bytecode_constant_at(vm->code, arg0));
@@ -179,11 +185,24 @@ vm_run(struct vm *vm)
                 val0 = popv(vm);
                 pusha(vm, val0);
                 break;
-        case OP_END_VEC:
+        case OP_PATCH_VEC:
                 arg0 = advance_ip(vm);
                 vm->code->constants.buffer[arg0].as.vector.astackent = vm->asp;
                 pusha(vm, bytecode_constant_at(vm->code, arg0));
                 pushv(vm, bytecode_constant_at(vm->code, arg0));
+                break;
+        case OP_VEC_TYPE:
+                val0 = popv(vm);
+                for (int i = 0; i < val0.as.integer; i++) {
+                        val1 = popv(vm);
+                        pushd(vm, val1.as.integer);
+                }
+                {
+                        struct value val2;
+                        val2 = popv(vm);
+                        val2.type.meta.vector.dimensions = vm->dsp - val0.as.integer;
+                        pushv(vm, val2);
+                }
                 break;
         case OP_NEWLINE:
                 printf("\n");
