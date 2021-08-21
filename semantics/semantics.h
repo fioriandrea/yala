@@ -11,8 +11,7 @@
 #define MAX_ARITY UINT8_MAX
 
 enum opcode {
-        OP_LOCI, /* constants */
-        OP_LOCS,
+        OP_LOC, /* constants */
 
         OP_ADDI, /* integer arithmetic */
         OP_SUBI,
@@ -43,9 +42,9 @@ enum opcode {
         OP_NEWLINE,
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
-        OP_PATCH_VEC,
+        OP_LOAD_AND_LINK_VEC_TO_ASTACK,
 
-        OP_VEC_TYPE,
+        OP_INIT_VEC_DIMS,
         OP_GET_INDEX,
 
         OP_HALT,

@@ -59,7 +59,7 @@ static struct tree_node *grouping_expr(struct parser *ps);
 static struct tree_node *conditional_expr(struct parser *ps);
 struct tree_node *id_expr(struct parser *ps);
 static struct tree_node *dispatch_id_expr(struct parser *ps);
-struct tree_node *idexing_expr(struct parser *ps, struct tree_node *indexed);
+struct tree_node *indexing_expr(struct parser *ps, struct tree_node *indexed);
 struct tree_node *call_expr(struct parser *ps, struct tree_node *called);
 static struct tree_node *expr_list(struct parser *ps);
 
@@ -489,7 +489,7 @@ vector_const(struct parser *ps)
         res->child = const_list(ps);
         eat_error(ps, TOKEN_RSQUARE);
         if (eat(ps, TOKEN_LSQUARE)) {
-                res = idexing_expr(ps, res);
+                res = indexing_expr(ps, res);
         }
         return res;
 }
@@ -561,7 +561,7 @@ dispatch_id_expr(struct parser *ps)
                 struct token op = ps->previous;
                 switch (op.type) {
                 case TOKEN_LSQUARE:
-                        res = idexing_expr(ps, res);
+                        res = indexing_expr(ps, res);
                         break;
                 case TOKEN_LPAREN:
                         res = call_expr(ps, res);
@@ -574,7 +574,7 @@ dispatch_id_expr(struct parser *ps)
 }
 
 struct tree_node *
-idexing_expr(struct parser *ps, struct tree_node *indexed)
+indexing_expr(struct parser *ps, struct tree_node *indexed)
 {
         struct tree_node *res = new_binary_node(indexed, ps->previous, NULL);
         struct tree_node **pp = &res->right;

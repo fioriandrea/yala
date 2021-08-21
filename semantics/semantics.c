@@ -5,7 +5,7 @@
 
 #include "semantics.h"
 
-static struct semantic_type emit_cond_expr(struct environment *env, struct tree_node *root);
+static struct semantic_type emit_cond_expression(struct environment *env, struct tree_node *root);
 static struct semantic_type emit_indexing_expression(struct environment *env, struct tree_node *root);
 static void emit_for_statement(struct environment *env, struct tree_node *root);
 static void emit_assign_statement(struct environment *env, struct tree_node *root);
@@ -33,7 +33,7 @@ static int parse_boolean_token(struct token token);
 static int parse_integer_token(struct token token);
 static struct semantic_type type_node_to_type(struct environment *env, struct tree_node *node);
 static struct semantic_type vector_type_node_to_type(struct environment *env, struct tree_node *node);
-static void semantics_error(struct environment *env, struct tree_node *root, char *fmt, ...);
+static void semantic_error(struct environment *env, struct tree_node *root, char *fmt, ...);
 
 struct bytecode *
 generate_bytecode(struct tree_node *parsetree)
@@ -78,7 +78,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                 node = root->child->child;
                 while (node != NULL) {
                         if (count == MAX_ARITY) {
-                                semantics_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
+                                semantic_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
                                 break;
                         }
                         emit_expression(env, node);
@@ -92,7 +92,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                 node = root->child->child;
                 while (node != NULL) {
                         if (count == MAX_ARITY) {
-                                semantics_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
+                                semantic_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
                                 break;
                         }
                         emit_expression(env, node);
@@ -122,7 +122,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_POPV);
                 return;
         default:
-                semantics_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
+                semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
         }
 }
 
@@ -147,7 +147,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN) {
-                        semantics_error(env, root, "operands must be booleans");
+                        semantic_error(env, root, "operands must be booleans");
                 }
                 patch_skip_long(env, root, codelen);
                 return booltype;
@@ -159,14 +159,14 @@ emit_expression(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN) {
-                        semantics_error(env, root, "operands must be booleans");
+                        semantic_error(env, root, "operands must be booleans");
                 }
                 patch_skip_long(env, root, codelen);
                 return booltype;
         case NODE_NOT_EXPR:
                 lefttype = emit_expression(env, root->left);
                 if (lefttype.type != VAL_BOOLEAN) {
-                        semantics_error(env, root, "operand must be a boolean");
+                        semantic_error(env, root, "operand must be a boolean");
                 }
                 emit_byte(env, root, OP_NOT);
                 return booltype;
@@ -174,7 +174,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
-                        semantics_error(env, root, "operands must be integers");
+                        semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_ADDI);
                 return inttype;
@@ -182,7 +182,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
-                        semantics_error(env, root, "operands must be integers");
+                        semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_SUBI);
                 return inttype;
@@ -190,7 +190,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
-                        semantics_error(env, root, "operands must be integers");
+                        semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_MULI);
                 return inttype;
@@ -198,7 +198,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
-                        semantics_error(env, root, "operands must be integers");
+                        semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_DIVI);
                 return inttype;
@@ -206,7 +206,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_ZERO);
                 lefttype = emit_expression(env, root->left);
                 if (lefttype.type != VAL_INTEGER) {
-                        semantics_error(env, root, "operand must be an integer");
+                        semantic_error(env, root, "operand must be an integer");
                 }
                 emit_byte(env, root, OP_SUBI);
                 return inttype;
@@ -214,7 +214,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!semantic_type_equal(lefttype, righttype)) {
-                        semantics_error(env, root, "operands must be of the same type");
+                        semantic_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
                 emit_byte(env, root, OP_NOT);
@@ -223,7 +223,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!semantic_type_equal(lefttype, righttype)) {
-                        semantics_error(env, root, "operands must be of the same type");
+                        semantic_error(env, root, "operands must be of the same type");
                 }
                 emit_byte(env, root, OP_EQUA);
                 return booltype;
@@ -231,7 +231,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!types_comparable(lefttype, righttype)) {
-                        semantics_error(env, root, "operands must be integers or strings");
+                        semantic_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_IGRTEQ);
                 return booltype;
@@ -239,7 +239,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!types_comparable(lefttype, righttype)) {
-                        semantics_error(env, root, "operands must be integers or strings");
+                        semantic_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_IGRT);
                 return booltype;
@@ -247,7 +247,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!types_comparable(lefttype, righttype)) {
-                        semantics_error(env, root, "operands must be integers or strings");
+                        semantic_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_ILEQ);
                 return booltype;
@@ -255,30 +255,30 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!types_comparable(lefttype, righttype)) {
-                        semantics_error(env, root, "operands must be integers or strings");
+                        semantic_error(env, root, "operands must be integers or strings");
                 }
                 emit_byte(env, root, OP_ILT);
                 return booltype;
         case NODE_COND_EXPR:
-                return emit_cond_expr(env, root);
+                return emit_cond_expression(env, root);
         case NODE_BOOLEAN_CONST:
-                emit_byte(env, root, OP_LOCI);
+                emit_byte(env, root, OP_LOC);
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
-                        semantics_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+                        semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
                 emit_constant(env, root, value_from_c_bool(parse_boolean_token(root->value)));
                 return booltype;
         case NODE_INTGER_CONST:
-                emit_byte(env, root, OP_LOCI);
+                emit_byte(env, root, OP_LOC);
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
-                        semantics_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+                        semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
                 emit_constant(env, root, value_from_c_int(parse_integer_token(root->value)));
                 return inttype;
         case NODE_STRING_CONST:
-                emit_byte(env, root, OP_LOCS);
+                emit_byte(env, root, OP_LOC);
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
-                        semantics_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+                        semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
                 emit_constant(env, root, value_from_token(root->value));
                 return strtype;
@@ -286,7 +286,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 return emit_vector_constant(env, root, 0);
         case NODE_ID:
                 if ((localindex = environment_local_get(env, root->value, &local)) < 0) {
-                        semantics_error(env, root, "undefined variable");
+                        semantic_error(env, root, "undefined variable");
                         break;
                 }
                 emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
@@ -294,7 +294,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_INDEXING:
                 return emit_indexing_expression(env, root);
         default:
-                semantics_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
+                semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
         }
         return inttype;
 }
@@ -360,7 +360,7 @@ patch_skip_long(struct environment *env, struct tree_node *root, int codelen)
         uint8_t jumplenfst, jumplenscn;
         jumplen = bytes_len(&code->code) - codelen;
         if (jumplen > MAX_SKIP_LONG) {
-                semantics_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
+                semantic_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
                 return 0;
         }
         jumplenfst = left_byte(jumplen);
@@ -381,7 +381,7 @@ emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen
         uint8_t jumplenfst, jumplenscn;
         jumplen = bytes_len(&code->code) - codelen;
         if (jumplen > MAX_SKIP_LONG) {
-                semantics_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
+                semantic_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
                 return 0;
         }
         jumplenfst = left_byte(jumplen);
@@ -427,7 +427,7 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
         if (inside.type == VAL_VECTOR) {
                 for (int i = 0; i < inside.meta.vector.rank; i++) {
                         if (type.meta.vector.rank == MAX_VECTOR_DIMENSIONS - 1) {
-                                semantics_error(env, node, "maximum vector rank exceeded");
+                                semantic_error(env, node, "maximum vector rank exceeded");
                                 break;
                         }
                         type.meta.vector.dimensions[type.meta.vector.rank++] = inside.meta.vector.dimensions[i];
@@ -481,15 +481,15 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
 {
         switch (type.type) {
         case VAL_BOOLEAN:
-                emit_byte(env, node, OP_LOCI);
+                emit_byte(env, node, OP_LOC);
                 emit_constant(env, node, value_from_c_bool(0));
                 break;
         case VAL_INTEGER:
-                emit_byte(env, node, OP_LOCI);
+                emit_byte(env, node, OP_LOC);
                 emit_constant(env, node, value_from_c_int(0));
                 break;
         case VAL_STRING:
-                emit_byte(env, node, OP_LOCS);
+                emit_byte(env, node, OP_LOC);
                 emit_constant(env, node, value_from_c_string(""));
                 break;
         case VAL_VECTOR: {
@@ -497,7 +497,7 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                         emit_byte(env, node, OP_ZERO);
                         emit_byte(env, node, OP_POP_TO_ASTACK);
                 }
-                emit_byte(env, node, OP_PATCH_VEC);
+                emit_byte(env, node, OP_LOAD_AND_LINK_VEC_TO_ASTACK);
                 struct value val;
                 val.type = semantic_type_to_run_type(type);
                 emit_constant(env, node, val);
@@ -520,12 +520,12 @@ static int
 emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms)
 {
         if (env->count == MAX_LOCALS) {
-                semantics_error(env, current, "maximum number of local variables exceeded");
+                semantic_error(env, current, "maximum number of local variables exceeded");
                 return 0;
         }
         struct local local;
         if (environment_local_get(env, current->value, &local) >= 0 && local.depth == env->depth) {
-                semantics_error(env, current, "variable already declared");
+                semantic_error(env, current, "variable already declared");
                 return 0;
         }
         emit_variable_default(env, current, type);
@@ -546,7 +546,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
         while (child != NULL && child->type == NODE_CONDITION_AND_STATEMENT) {
                 type1 = emit_expression(env, child->left);
                 if (type1.type != VAL_BOOLEAN) {
-                        semantics_error(env, child->left, "if condition must be boolean");
+                        semantic_error(env, child->left, "if condition must be boolean");
                         return;
                 }
                 emit_three_bytes(env, child->left, OP_SKIPF_LONG, 0, 0);
@@ -555,7 +555,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
                 emit_statement(env, child->right);
                 emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
                 if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
-                        semantics_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
+                        semantic_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
                         return;
                 }
                 *toendp++ = bytes_len(&code->code);
@@ -580,7 +580,7 @@ emit_while_statement(struct environment *env, struct tree_node *root)
         startlen = bytes_len(&code->code);
         type1 = emit_expression(env, root->left);
         if (type1.type != VAL_BOOLEAN) {
-                semantics_error(env, root->left, "while condition must be boolean");
+                semantic_error(env, root->left, "while condition must be boolean");
                 return;
         }
         emit_three_bytes(env, root->left, OP_SKIPF_LONG, 0, 0);
@@ -604,7 +604,7 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
 
         type1 = emit_expression(env, root->right);
         if (type1.type != VAL_BOOLEAN) {
-                semantics_error(env, root->right, "until condition must be boolean");
+                semantic_error(env, root->right, "until condition must be boolean");
                 return;
         }
 
@@ -624,13 +624,13 @@ emit_assign_statement(struct environment *env, struct tree_node *root)
         /* if not indexing */
         localindex = environment_local_get(env, root->left->value, &local);
         if (localindex < 0) {
-                semantics_error(env, root, "undefined variable");
+                semantic_error(env, root, "undefined variable");
         }
         if (!env->error && (local.perms & LOCAL_PERM_W) == 0) {
-                semantics_error(env, root, "cannot assign read-only variable");
+                semantic_error(env, root, "cannot assign read-only variable");
         }
         if (!env->error && local.type.type != righttype.type) {
-                semantics_error(env, root, "mismatching types in assignment");
+                semantic_error(env, root, "mismatching types in assignment");
         }
         emit_three_bytes(env, root, OP_SET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
 }
@@ -669,7 +669,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         struct semantic_type type1;
         type1 = emit_expression(env, condition->right);
         if (type1.type != VAL_INTEGER) {
-                semantics_error(env, condition->right, "for loop upper range must be an integer");
+                semantic_error(env, condition->right, "for loop upper range must be an integer");
                 return;
         }
         emit_three_bytes(env, &forcond_node, OP_SET_LOCAL_LONG, left_byte(forcond_index), right_byte(forcond_index));
@@ -696,7 +696,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
 }
 
 static struct semantic_type
-emit_cond_expr(struct environment *env, struct tree_node *root)
+emit_cond_expression(struct environment *env, struct tree_node *root)
 {
         int toendlens[MAX_CONDITIONAL_LEN];
         int codelen, *toendp;
@@ -708,7 +708,7 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
         while (child != NULL && child->type == NODE_CONDITION_AND_EXPRESSION) {
                 type1 = emit_expression(env, child->left);
                 if (type1.type != VAL_BOOLEAN) {
-                        semantics_error(env, child->left, "if condition must be boolean");
+                        semantic_error(env, child->left, "if condition must be boolean");
                         return type0;
                 }
                 emit_three_bytes(env, child->left, OP_SKIPF_LONG, 0, 0);
@@ -718,12 +718,12 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
                 if (child == root->child)
                         type0 = type1;
                 if (type0.type != type1.type) {
-                        semantics_error(env, child, "conditional expression types must be the same");
+                        semantic_error(env, child, "conditional expression types must be the same");
                         return type0;
                 }
                 emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
                 if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
-                        semantics_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
+                        semantic_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
                         return type0;
                 }
                 *toendp++ = bytes_len(&code->code);
@@ -733,7 +733,7 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
         }
         type1 = emit_expression(env, child);
         if (type0.type != type1.type) {
-                semantics_error(env, child, "conditional expression types must be the same");
+                semantic_error(env, child, "conditional expression types must be the same");
                 return type0;
         }
         while (toendp > toendlens) {
@@ -753,17 +753,17 @@ emit_indexing_expression(struct environment *env, struct tree_node *root)
 
         indexed_type = emit_expression(env, indexed);
         if (indexed_type.type != VAL_VECTOR) {
-                semantics_error(env, indexed, "cannot index a non vector type");
+                semantic_error(env, indexed, "cannot index a non vector type");
         }
 
         while (index != NULL) {
                 index_type = emit_expression(env, index);
                 if (index_type.type != VAL_INTEGER) {
-                        semantics_error(env, index, "cannot use a non integer as an index");
+                        semantic_error(env, index, "cannot use a non integer as an index");
                 }
                 index_count++;
                 if (index_count > indexed_type.meta.vector.rank) {
-                        semantics_error(env, index, "maximum number of indices exceeded for array exceeded (%d)", indexed_type.meta.vector.rank);
+                        semantic_error(env, index, "maximum number of indices exceeded for array exceeded (%d)", indexed_type.meta.vector.rank);
                 }
                 index = index->next;
         }
@@ -818,7 +818,7 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                 for (struct tree_node *node = root->child->next; node != NULL; node = node->next) {
                         struct semantic_type current_type = emit_vector_constant(env, node, depth + 1);
                         if (!semantic_type_equal(type, current_type)) {
-                                semantics_error(env, node, "vector elements must be homogeneous");
+                                semantic_error(env, node, "vector elements must be homogeneous");
                                 break;
                         }
                         size += type.meta.vector.size;
@@ -833,7 +833,7 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                 return toret;
         
 
-        emit_byte(env, root, OP_PATCH_VEC);
+        emit_byte(env, root, OP_LOAD_AND_LINK_VEC_TO_ASTACK);
         struct value val;
         val.type = semantic_type_to_run_type(toret);
         val.as.vector.astackent = NULL;
@@ -844,15 +844,14 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
         return toret;
 }
 
-static void emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type)
+static void
+emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type)
 {
         for (int i = type.meta.vector.rank - 1; i >= 0; i--) {
-                emit_byte(env, root, OP_LOCI);
+                emit_byte(env, root, OP_LOC);
                 emit_constant(env, root, value_from_c_int(type.meta.vector.dimensions[i]));
         }
-        emit_byte(env, root, OP_LOCI);
-        emit_constant(env, root, value_from_c_int(type.meta.vector.rank));
-        emit_byte(env, root, OP_VEC_TYPE);
+        emit_two_bytes(env, root, OP_INIT_VEC_DIMS, type.meta.vector.rank);
 }
 
 static int
@@ -887,13 +886,12 @@ opcodestring(enum opcode code)
         case OP_IGRT: return "OP_IGRT";
         case OP_ILEQ: return "OP_ILEQ";
         case OP_ILT: return "OP_ILT";
-        case OP_LOCI: return "OP_LOCI";
-        case OP_LOCS: return "OP_LOCS";
+        case OP_LOC: return "OP_LOC";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
         case OP_ONE: return "OP_ONE";
-        case OP_PATCH_VEC: return "OP_END_VEC";
+        case OP_LOAD_AND_LINK_VEC_TO_ASTACK: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK";
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
@@ -901,7 +899,7 @@ opcodestring(enum opcode code)
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
         case OP_SKIP_LONG: return "OP_SKIP_LONG";
         case OP_SUBI: return "OP_SUBI";
-        case OP_VEC_TYPE: return "OP_VEC_TYPE";
+        case OP_INIT_VEC_DIMS: return "OP_INIT_VEC_DIMS";
         case OP_WRITE: return "OP_WRITE";
         case OP_ZERO: return "OP_ZERO";
         }
@@ -963,11 +961,10 @@ disassemble(struct bytecode *code)
                 printf("%d: %s ", ip, opcodestring(instruction));
                 ip++;
                 switch (instruction) {
-                case OP_LOCI:
-                case OP_LOCS:
+                case OP_LOC:
                         ip = disassemble_constant(code, ip);
                         break;
-                case OP_PATCH_VEC:
+                case OP_LOAD_AND_LINK_VEC_TO_ASTACK:
                         ip = disassemble_constant_vector(code, ip);
                         break;
                 case OP_SKIP_BACK_LONG:
@@ -979,6 +976,7 @@ disassemble(struct bytecode *code)
                         break;
                 case OP_WRITE:
                 case OP_GET_INDEX:
+                case OP_INIT_VEC_DIMS:
                         ip = disassemble_argument(code, ip);
                         break;
                 default:
@@ -990,7 +988,7 @@ disassemble(struct bytecode *code)
 }
 
 static void
-semantics_error(struct environment *env, struct tree_node *root, char *fmt, ...)
+semantic_error(struct environment *env, struct tree_node *root, char *fmt, ...)
 {
         if (env->error)
                 return;
