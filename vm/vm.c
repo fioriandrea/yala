@@ -206,7 +206,7 @@ vm_run(struct vm *vm)
                         pushd(vm, val0.as.integer);
                 }
                 val1 = popv(vm);
-                val1.type.dimensions = vm->dsp - val0.as.integer;
+                val1.type.dimensions = vm->dsp - arg0;
                 pushv(vm, val1);
                 break;
         case OP_NEWLINE:
@@ -231,6 +231,38 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 vm->stack[arglong0] = popv(vm);
                 break;
+        case OP_SET_INDEXED_LOCAL_LONG:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                arg0 = advance_ip(vm);
+                val0 = vm->stack[arglong0];
+
+                indicesbuffp = indicesbuff + arg0 - 1;
+                for (int i = 0; i < arg0; i++) {
+                        *indicesbuffp = popv(vm).as.integer;
+                        indicesbuffp--;
+                }
+                for (int i = 0; i < arg0; i++) {
+                        if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
+                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.dimensions[i] - 1);
+                                return 1;
+                        }
+                }
+
+                val1 = popv(vm);
+                if (arg0 == val0.type.rank) {
+                        vector_value_set_element_at(val0, index_flattened(val0.type.dimensions, indicesbuff, arg0), val1);
+                } else {
+                        for (int i = arg0; i < val0.type.rank; i++) {
+                                indicesbuff[i] = 0;
+                        }
+                        int start = index_flattened(val0.type.dimensions, indicesbuff, val0.type.rank);
+                        for (int i = 0; i < val1.type.size; i++) {
+                                vector_value_set_element_at(val0, start + i, vector_value_get_element_at(val1, i));
+                        }
+                }
+                break;
         case OP_GET_INDEX:
                 arg0 = advance_ip(vm);
                 indicesbuffp = indicesbuff + arg0 - 1;
@@ -241,7 +273,7 @@ vm_run(struct vm *vm)
                 val0 = popv(vm);
                 for (int i = 0; i < arg0; i++) {
                         if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
-                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.dimensions[i] - 1);
+                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d, got %d)", val0.type.dimensions[i] - 1, indicesbuff[i]);
                                 return 1;
                         }
                 }

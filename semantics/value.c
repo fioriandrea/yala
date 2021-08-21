@@ -376,3 +376,9 @@ vector_value_get_element_at(struct value vec, int i)
 {
         return *(vec.as.vector.astackent - vec.type.size + i);
 }
+
+void
+vector_value_set_element_at(struct value vec, int i, struct value val)
+{
+        *(vec.as.vector.astackent - vec.type.size + i) = val;
+}

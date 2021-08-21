@@ -9,6 +9,7 @@ static struct semantic_type emit_cond_expression(struct environment *env, struct
 static struct semantic_type emit_indexing_expression(struct environment *env, struct tree_node *root);
 static void emit_for_statement(struct environment *env, struct tree_node *root);
 static void emit_assign_statement(struct environment *env, struct tree_node *root);
+static void emit_indexed_assign_statement(struct environment *env, struct tree_node *root);
 static void emit_repeat_statement(struct environment *env, struct tree_node *root);
 static void emit_while_statement(struct environment *env, struct tree_node *root);
 static void emit_if_statement(struct environment *env, struct tree_node *root);
@@ -24,6 +25,8 @@ static struct semantic_type emit_vector_constant(struct environment *env, struct
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
 static void emit_two_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1);
 static void emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2);
+static void emit_four_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2, uint8_t byte3);
+static struct semantic_type compute_indexed_semantic_type(int index_count, struct semantic_type indexed_type);
 static int patch_skip_long(struct environment *env, struct tree_node *root, int codelen);
 static void environment_init(struct environment *env, struct bytecode *code);
 static int environment_local_get(struct environment *env, struct token name, struct local *local);
@@ -104,7 +107,10 @@ emit_statement(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_NEWLINE);
                 return;
         case NODE_ASSIGN_STAT:
-                emit_assign_statement(env, root);
+                if (root->left->type != NODE_INDEXING)
+                        emit_assign_statement(env, root);
+                else
+                        emit_indexed_assign_statement(env, root);
                 return;
         case NODE_IF_STAT:
                 emit_if_statement(env, root);
@@ -323,6 +329,15 @@ emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0,
 }
 
 static void
+emit_four_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2, uint8_t byte3)
+{
+        emit_byte(env, root, byte0);
+        emit_byte(env, root, byte1);
+        emit_byte(env, root, byte2);
+        emit_byte(env, root, byte3);
+}
+
+static void
 emit_constant(struct environment *env, struct tree_node *root, struct value val)
 {
         if (env->error)
@@ -409,7 +424,8 @@ type_node_to_type(struct environment *env, struct tree_node *node)
                 type = semantic_type_scalar(VAL_BOOLEAN);
                 break;
         case NODE_VECTOR_TYPE:
-                return vector_type_node_to_type(env, node);
+                type = vector_type_node_to_type(env, node);
+                break;
         default:
                 printf("unreachable code in type_node_to_type\n");
         }
@@ -614,6 +630,44 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
 }
 
 static void
+emit_indexed_assign_statement(struct environment *env, struct tree_node *root)
+{
+        struct semantic_type left_type, righttype, indexed_type;
+        int localindex, index_count;
+        struct local local;
+
+        struct tree_node *vector_node = root->left->left;
+        struct tree_node *indices_node = root->left->right;
+        struct tree_node *rhs_node = root->right;
+
+        localindex = environment_local_get(env, vector_node->value, &local);
+        if (localindex < 0) {
+                semantic_error(env, root, "undefined variable");
+        }
+        if (!env->error && (local.perms & LOCAL_PERM_W) == 0) {
+                semantic_error(env, root, "cannot assign read-only variable");
+        }
+
+        righttype = emit_expression(env, rhs_node);
+
+        indexed_type = local.type;
+        index_count = 0;
+        for (struct tree_node *node = indices_node; node != NULL; node = node->next) {
+                index_count++;
+                if (emit_expression(env, node).id != VAL_INTEGER) {
+                        semantic_error(env, node, "cannot index array with non integer");
+                        break;
+                }
+        }
+
+        left_type = compute_indexed_semantic_type(index_count, indexed_type);
+        if (!semantic_type_equal(left_type, righttype)) {
+                semantic_error(env, root, "mismatching types in assignment");
+        }
+        emit_four_bytes(env, root, OP_SET_INDEXED_LOCAL_LONG, left_byte(localindex), right_byte(localindex), index_count);
+}
+
+static void
 emit_assign_statement(struct environment *env, struct tree_node *root)
 {
         struct semantic_type righttype;
@@ -768,6 +822,16 @@ emit_indexing_expression(struct environment *env, struct tree_node *root)
                 index = index->next;
         }
 
+        struct semantic_type toret = compute_indexed_semantic_type(index_count, indexed_type);
+
+        emit_two_bytes(env, root, OP_GET_INDEX, index_count);
+
+        return toret;
+}
+
+static struct semantic_type
+compute_indexed_semantic_type(int index_count, struct semantic_type indexed_type)
+{
         struct semantic_type toret;
         if (index_count == indexed_type.rank) {
                 toret = semantic_type_scalar(indexed_type.base);
@@ -777,20 +841,12 @@ emit_indexing_expression(struct environment *env, struct tree_node *root)
                 toret.base = indexed_type.base;
                 toret.rank = indexed_type.rank - index_count;
 
-                toret.size = indexed_type.size;
-                for (int i = index_count - 1; i < indexed_type.rank; i++) {
-                        toret.size /= indexed_type.dimensions[i];
-                }
-
                 toret.size = 0;
                 for (int i = index_count; i < indexed_type.rank; i++) {
                         toret.size += indexed_type.dimensions[i];
                         toret.dimensions[i - index_count] = indexed_type.dimensions[i];
                 }
         }
-
-        emit_two_bytes(env, root, OP_GET_INDEX, index_count);
-
         return toret;
 }
 
@@ -897,6 +953,7 @@ opcodestring(enum opcode code)
         case OP_ONE: return "OP_ONE";
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
+        case OP_SET_INDEXED_LOCAL_LONG: return "OP_SET_INDEXED_LOCAL_LONG";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
         case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
@@ -979,6 +1036,10 @@ disassemble(struct bytecode *code)
                 case OP_WRITE:
                 case OP_GET_INDEX:
                 case OP_INIT_VEC_DIMS:
+                        ip = disassemble_argument(code, ip);
+                        break;
+                case OP_SET_INDEXED_LOCAL_LONG:
+                        ip = disassemble_argument_long(code, ip);
                         ip = disassemble_argument(code, ip);
                         break;
                 default:

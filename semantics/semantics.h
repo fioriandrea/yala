@@ -48,6 +48,7 @@ enum opcode {
 
         OP_INIT_VEC_DIMS,
         OP_GET_INDEX,
+        OP_SET_INDEXED_LOCAL_LONG,
 
         OP_HALT,
 };
@@ -117,6 +118,7 @@ void run_type_print(struct run_type type);
 char * value_type_to_string(enum value_type vt);
 int index_flattened(int *dimensions, int *indices, int length);
 struct value vector_value_get_element_at(struct value vec, int i);
+void vector_value_set_element_at(struct value vec, int i, struct value val);
 
 struct lineinfo {
         int line;
