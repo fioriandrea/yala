@@ -87,6 +87,9 @@ vm_run(struct vm *vm)
         uint8_t arg0, arg1;
         uint8_t arglong0;
 
+        int indicesbuff[MAX_VECTOR_DIMENSIONS];
+        int *indicesbuffp;
+
         for (;;) {
         current = advance_ip(vm);
         switch (current) {
@@ -225,6 +228,48 @@ vm_run(struct vm *vm)
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
                 vm->stack[arglong0] = popv(vm);
+                break;
+        case OP_GET_INDEX:
+                arg0 = advance_ip(vm);
+                indicesbuffp = indicesbuff + arg0 - 1;
+                for (int i = 0; i < arg0; i++) {
+                        *indicesbuffp = popv(vm).as.integer;
+                        indicesbuffp--;
+                }
+                val0 = popv(vm);
+                for (int i = 0; i < arg0; i++) {
+                        if (indicesbuff[i] >= val0.type.meta.vector.dimensions[i] || indicesbuff[i] < 0) {
+                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.meta.vector.dimensions[i] - 1);
+                                return 1;
+                        }
+                }
+                if (arg0 == val0.type.meta.vector.rank) {
+                        pushv(vm, vector_value_get_element_at(val0, index_flattened(val0.type.meta.vector.dimensions ,indicesbuff, arg0)));
+                } else {
+                        for (int i = arg0; i < val0.type.meta.vector.rank; i++) {
+                                indicesbuff[i] = 0;
+                        }
+                        int start = index_flattened(val0.type.meta.vector.dimensions, indicesbuff, val0.type.meta.vector.rank);
+                        int count = 1;
+                        for (int i = arg0; i < val0.type.meta.vector.rank; i++) {
+                                count *= val0.type.meta.vector.dimensions[i];
+                        }
+                        for (int i = start; i < start + count; i++) {
+                                struct value from_main_vector = vector_value_get_element_at(val0, i);
+                                pusha(vm, from_main_vector);
+                        }
+                        struct value result_value;
+                        result_value.type.type = VAL_VECTOR;
+                        result_value.type.meta.vector.rank = val0.type.meta.vector.rank - arg0;
+                        result_value.type.meta.vector.size = count;
+                        pusha(vm, result_value);
+                        result_value.as.vector.astackent = vm->asp - 1;
+                        result_value.type.meta.vector.dimensions = vm->dsp;
+                        for (int i = 0; i < count; i++) {
+                                pushd(vm, val0.type.meta.vector.dimensions[i + arg0]);
+                        }
+                        pushv(vm, result_value);
+                }
                 break;
         case OP_HALT:
                 return 0;

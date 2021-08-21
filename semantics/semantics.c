@@ -6,6 +6,7 @@
 #include "semantics.h"
 
 static struct semantic_type emit_cond_expr(struct environment *env, struct tree_node *root);
+static struct semantic_type emit_indexing_expression(struct environment *env, struct tree_node *root);
 static void emit_for_statement(struct environment *env, struct tree_node *root);
 static void emit_assign_statement(struct environment *env, struct tree_node *root);
 static void emit_repeat_statement(struct environment *env, struct tree_node *root);
@@ -290,6 +291,8 @@ emit_expression(struct environment *env, struct tree_node *root)
                 }
                 emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
                 return local.type;
+        case NODE_INDEXING:
+                return emit_indexing_expression(env, root);
         default:
                 semantics_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
         }
@@ -741,6 +744,57 @@ emit_cond_expr(struct environment *env, struct tree_node *root)
 }
 
 static struct semantic_type
+emit_indexing_expression(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *index = root->right;
+        struct tree_node *indexed = root->left;
+        struct semantic_type indexed_type, index_type;
+        int index_count = 0;
+
+        indexed_type = emit_expression(env, indexed);
+        if (indexed_type.type != VAL_VECTOR) {
+                semantics_error(env, indexed, "cannot index a non vector type");
+        }
+
+        while (index != NULL) {
+                index_type = emit_expression(env, index);
+                if (index_type.type != VAL_INTEGER) {
+                        semantics_error(env, index, "cannot use a non integer as an index");
+                }
+                index_count++;
+                if (index_count > indexed_type.meta.vector.rank) {
+                        semantics_error(env, index, "maximum number of indices exceeded for array exceeded (%d)", indexed_type.meta.vector.rank);
+                }
+                index = index->next;
+        }
+
+        struct semantic_type toret;
+        if (index_count == indexed_type.meta.vector.rank) {
+                toret = scalar_semantic_type(indexed_type.meta.vector.base);
+        } else {
+                struct semantic_type toret;
+                toret.type = VAL_VECTOR;
+                toret.meta.vector.base = indexed_type.meta.vector.base;
+                toret.meta.vector.rank = indexed_type.meta.vector.rank - index_count;
+
+                toret.meta.vector.size = indexed_type.meta.vector.size;
+                for (int i = index_count - 1; i < indexed_type.meta.vector.rank; i++) {
+                        toret.meta.vector.size /= indexed_type.meta.vector.dimensions[i];
+                }
+
+                toret.meta.vector.size = 0;
+                for (int i = index_count; i < indexed_type.meta.vector.rank; i++) {
+                        toret.meta.vector.size += indexed_type.meta.vector.dimensions[i];
+                        toret.meta.vector.dimensions[i - index_count] = indexed_type.meta.vector.dimensions[i];
+                }
+        }
+
+        emit_two_bytes(env, root, OP_GET_INDEX, index_count);
+
+        return toret;
+}
+
+static struct semantic_type
 emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
 {
         struct semantic_type toret;
@@ -825,8 +879,8 @@ opcodestring(enum opcode code)
         switch (code) {
         case OP_ADDI: return "OP_ADDI";
         case OP_DIVI: return "OP_DIVI";
-        case OP_PATCH_VEC: return "OP_END_VEC";
         case OP_EQUA: return "OP_EQUA";
+        case OP_GET_INDEX: return "OP_GET_INDEX";
         case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
         case OP_HALT: return "OP_HALT";
         case OP_IGRTEQ: return "OP_IGRTEQ";
@@ -839,6 +893,7 @@ opcodestring(enum opcode code)
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
         case OP_ONE: return "OP_ONE";
+        case OP_PATCH_VEC: return "OP_END_VEC";
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
@@ -923,6 +978,7 @@ disassemble(struct bytecode *code)
                         ip = disassemble_argument_long(code, ip);
                         break;
                 case OP_WRITE:
+                case OP_GET_INDEX:
                         ip = disassemble_argument(code, ip);
                         break;
                 default:

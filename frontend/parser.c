@@ -488,6 +488,9 @@ vector_const(struct parser *ps)
         advance(ps);
         res->child = const_list(ps);
         eat_error(ps, TOKEN_RSQUARE);
+        if (eat(ps, TOKEN_LSQUARE)) {
+                res = idexing_expr(ps, res);
+        }
         return res;
 }
 

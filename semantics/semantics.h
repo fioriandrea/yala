@@ -46,6 +46,7 @@ enum opcode {
         OP_PATCH_VEC,
 
         OP_VEC_TYPE,
+        OP_GET_INDEX,
 
         OP_HALT,
 };
@@ -120,6 +121,8 @@ struct semantic_type scalar_semantic_type(enum value_type vt);
 void semantic_type_print(struct semantic_type semantic_type);
 void run_type_print(struct run_type type);
 char * value_type_to_string(enum value_type vt);
+int index_flattened(int *dimensions, int *indices, int length);
+struct value vector_value_get_element_at(struct value vec, int i);
 
 struct lineinfo {
         int line;

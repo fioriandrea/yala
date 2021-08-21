@@ -145,7 +145,7 @@ value_print(struct value v)
                 printf("%s", v.as.boolean ? "true" : "false");
                 return;
         case VAL_STRING:
-                printf("%.*s", v.as.string.length, v.as.string.str);
+                printf("\"%.*s\"", v.as.string.length, v.as.string.str);
                 return;
         case VAL_VECTOR:
                 printf("[");
@@ -344,4 +344,24 @@ semantic_type_to_run_type(struct semantic_type st)
                         break;
         }
         return rt;
+}
+
+int
+index_flattened(int *dimensions, int *indices, int length)
+{
+        int res = 0;
+        for (int i = 0; i < length; i++) {
+                int term = indices[i];
+                for (int j = i + 1; j < length; j++) {
+                        term *= dimensions[j];
+                }
+                res += term;
+        }
+        return res;
+}
+
+struct value
+vector_value_get_element_at(struct value vec, int i)
+{
+        return *(vec.as.vector.astackent - vec.type.meta.vector.size + i);
 }
