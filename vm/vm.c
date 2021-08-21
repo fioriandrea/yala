@@ -156,6 +156,12 @@ vm_run(struct vm *vm)
         case OP_ONE:
                 pushv(vm, value_from_c_int(1));
                 break;
+        case OP_FALSE:
+                pushv(vm, value_from_c_bool(0));
+                break;
+        case OP_EMPTY_STRING:
+                pushv(vm, value_from_c_string(""));
+                break;
         case OP_SKIP_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);

@@ -32,6 +32,8 @@ enum opcode {
 
         OP_ZERO, /* constants */
         OP_ONE,
+        OP_FALSE,
+        OP_EMPTY_STRING,
 
         OP_POPV, /* value stack manipulation */
 

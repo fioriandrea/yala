@@ -19,6 +19,7 @@ static void emit_pop_scope(struct environment *env, struct tree_node *node);
 static void emit_push_scope(struct environment *env, struct tree_node *node);
 static int emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen);
 static void emit_constant(struct environment *env, struct tree_node *root, struct value val);
+static void emit_load_constant(struct environment *env, struct tree_node *root, struct value val);
 static struct semantic_type emit_vector_constant(struct environment *env, struct tree_node *root, int depth);
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
 static void emit_two_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1);
@@ -262,25 +263,22 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_COND_EXPR:
                 return emit_cond_expression(env, root);
         case NODE_BOOLEAN_CONST:
-                emit_byte(env, root, OP_LOC);
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_constant(env, root, value_from_c_bool(parse_boolean_token(root->value)));
+                emit_load_constant(env, root, value_from_c_bool(parse_boolean_token(root->value)));
                 return booltype;
         case NODE_INTGER_CONST:
-                emit_byte(env, root, OP_LOC);
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_constant(env, root, value_from_c_int(parse_integer_token(root->value)));
+                emit_load_constant(env, root, value_from_c_int(parse_integer_token(root->value)));
                 return inttype;
         case NODE_STRING_CONST:
-                emit_byte(env, root, OP_LOC);
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_constant(env, root, value_from_token(root->value));
+                emit_load_constant(env, root, value_from_token(root->value));
                 return strtype;
         case NODE_VECTOR_CONST:
                 return emit_vector_constant(env, root, 0);
@@ -336,6 +334,13 @@ emit_constant(struct environment *env, struct tree_node *root, struct value val)
         linfo.line = root->value.line;
         linfo.linepos = root->value.linepos;
         bytecode_write_constant(code, val, linfo);
+}
+
+static void
+emit_load_constant(struct environment *env, struct tree_node *root, struct value val)
+{
+        emit_byte(env, root, OP_LOC);
+        emit_constant(env, root, val);
 }
 
 static uint8_t
@@ -481,20 +486,17 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
 {
         switch (type.type) {
         case VAL_BOOLEAN:
-                emit_byte(env, node, OP_LOC);
-                emit_constant(env, node, value_from_c_bool(0));
+                emit_byte(env, node, OP_FALSE);
                 break;
         case VAL_INTEGER:
-                emit_byte(env, node, OP_LOC);
-                emit_constant(env, node, value_from_c_int(0));
+                emit_byte(env, node, OP_ZERO);
                 break;
         case VAL_STRING:
-                emit_byte(env, node, OP_LOC);
-                emit_constant(env, node, value_from_c_string(""));
+                emit_byte(env, node, OP_EMPTY_STRING);
                 break;
         case VAL_VECTOR: {
                 for (int i = 0; i < type.meta.vector.size; i++) {
-                        emit_byte(env, node, OP_ZERO);
+                        emit_variable_default(env, node, scalar_semantic_type(type.meta.vector.base));
                         emit_byte(env, node, OP_POP_TO_ASTACK);
                 }
                 emit_byte(env, node, OP_LOAD_AND_LINK_VEC_TO_ASTACK);
@@ -878,7 +880,9 @@ opcodestring(enum opcode code)
         switch (code) {
         case OP_ADDI: return "OP_ADDI";
         case OP_DIVI: return "OP_DIVI";
+        case OP_EMPTY_STRING: return "OP_EMPTY_STRING";
         case OP_EQUA: return "OP_EQUA";
+        case OP_FALSE: return "OP_FALSE";
         case OP_GET_INDEX: return "OP_GET_INDEX";
         case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
         case OP_HALT: return "OP_HALT";
@@ -886,12 +890,13 @@ opcodestring(enum opcode code)
         case OP_IGRT: return "OP_IGRT";
         case OP_ILEQ: return "OP_ILEQ";
         case OP_ILT: return "OP_ILT";
+        case OP_INIT_VEC_DIMS: return "OP_INIT_VEC_DIMS";
+        case OP_LOAD_AND_LINK_VEC_TO_ASTACK: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK";
         case OP_LOC: return "OP_LOC";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
         case OP_ONE: return "OP_ONE";
-        case OP_LOAD_AND_LINK_VEC_TO_ASTACK: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK";
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
@@ -899,7 +904,6 @@ opcodestring(enum opcode code)
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
         case OP_SKIP_LONG: return "OP_SKIP_LONG";
         case OP_SUBI: return "OP_SUBI";
-        case OP_INIT_VEC_DIMS: return "OP_INIT_VEC_DIMS";
         case OP_WRITE: return "OP_WRITE";
         case OP_ZERO: return "OP_ZERO";
         }
