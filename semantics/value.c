@@ -137,7 +137,7 @@ bytecode_constant_at(struct bytecode *code, uint8_t address)
 void
 value_print(struct value v)
 {
-        switch (v.type.type) {
+        switch (v.type.id) {
         case VAL_INTEGER:
                 printf("%d", v.as.integer);
                 return;
@@ -149,21 +149,21 @@ value_print(struct value v)
                 return;
         case VAL_VECTOR:
                 printf("[");
-                for (int i = 0; i < v.type.meta.vector.size; i++) {
-                        value_print(*(v.as.vector.astackent - v.type.meta.vector.size + i));
-                        printf(i == v.type.meta.vector.size - 1 ? "" : ", ");
+                for (int i = 0; i < v.type.size; i++) {
+                        value_print(*(v.as.vector.astackent - v.type.size + i));
+                        printf(i == v.type.size - 1 ? "" : ", ");
                 }
                 printf("]");
                 return;
         }
-        printf("unreachable value type %d", v.type.type);
+        printf("unreachable value type %d", v.type.id);
 }
 
 struct value
 value_from_c_int(int i)
 {
         struct value v;
-        v.type.type = VAL_INTEGER;
+        v.type = run_type_scalar(VAL_INTEGER);
         v.as.integer = i;
         return v;
 }
@@ -172,7 +172,7 @@ struct value
 value_from_c_bool(int b)
 {
         struct value v;
-        v.type.type = VAL_BOOLEAN;
+        v.type = run_type_scalar(VAL_BOOLEAN);
         v.as.boolean = !!b;
         return v;
 }
@@ -213,7 +213,7 @@ struct value
 value_from_token(struct token token)
 {
         struct value v;
-        v.type.type = VAL_STRING;
+        v.type = run_type_scalar(VAL_STRING);
         v.as.string = value_string_from_token(token);
         return v;
 }
@@ -222,27 +222,38 @@ struct value
 value_from_c_string(char *str)
 {
         struct value v;
-        v.type.type = VAL_STRING;
+        v.type = run_type_scalar(VAL_STRING);
         v.as.string = copy_string(str, strlen(str));
         return v;
 }
 
 struct semantic_type
-scalar_semantic_type(enum value_type vt)
+semantic_type_scalar(enum value_type vt)
 {
 
         struct semantic_type type;
-        type.type = vt;
-        type.meta.vector.base = vt;
-        type.meta.vector.rank = 0;
-        type.meta.vector.size = 1;
+        type.id = vt;
+        type.base = vt;
+        type.rank = 0;
+        type.size = 1;
+        return type;
+}
+
+struct run_type
+run_type_scalar(enum value_type vt)
+{
+        struct run_type type;
+        type.id = vt;
+        type.rank = 0;
+        type.size = 1;
+        type.dimensions = NULL;
         return type;
 }
 
 int
 values_equal(struct value val0, struct value val1)
 {
-        switch (val0.type.type) {
+        switch (val0.type.id) {
         case VAL_INTEGER:
                 return val0.as.integer == val1.as.integer;
         case VAL_BOOLEAN:
@@ -252,7 +263,7 @@ values_equal(struct value val0, struct value val1)
                         return 0;
                 return val0.as.string.length == val1.as.string.length && memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length) == 0;
         case VAL_VECTOR:
-                for (int i = 0; i < val0.type.meta.vector.size; i++) {
+                for (int i = 0; i < val0.type.size; i++) {
                         struct value ent0 = val0.as.vector.astackent[-i - 1];
                         struct value ent1 = val1.as.vector.astackent[-i - 1];
                         if (!values_equal(ent0, ent1))
@@ -266,9 +277,9 @@ values_equal(struct value val0, struct value val1)
 int
 types_comparable(struct semantic_type lefttype, struct semantic_type righttype)
 {
-        if (lefttype.type != righttype.type)
+        if (lefttype.id != righttype.id)
                 return 0;
-        if (lefttype.type != VAL_STRING && lefttype.type != VAL_INTEGER)
+        if (lefttype.id != VAL_STRING && lefttype.id != VAL_INTEGER)
                 return 0;
         return 1;
 }
@@ -276,13 +287,13 @@ types_comparable(struct semantic_type lefttype, struct semantic_type righttype)
 int
 compare_values(struct value val0, struct value val1)
 {
-        switch (val0.type.type) {
+        switch (val0.type.id) {
                 case VAL_STRING:
                         return memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length);
                 case VAL_INTEGER:
                         return val0.as.integer - val1.as.integer;
                 default:
-                        printf("unreachable code at compare_values (val0 type %d)", val0.type.type);
+                        printf("unreachable code at compare_values (val0 type %d)", val0.type.id);
                         return 0;
         }
 }
@@ -290,7 +301,7 @@ compare_values(struct value val0, struct value val1)
 int
 semantic_type_equal(struct semantic_type type0, struct semantic_type type1)
 {
-        return type0.type == type1.type && type0.meta.vector.base == type1.meta.vector.base && type0.meta.vector.rank == type1.meta.vector.rank && memcmp(type0.meta.vector.dimensions, type1.meta.vector.dimensions, sizeof(int) * type0.meta.vector.rank) == 0;
+        return type0.id == type1.id && type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
 }
 
 char *
@@ -308,15 +319,15 @@ value_type_to_string(enum value_type vt)
 void
 semantic_type_print(struct semantic_type type)
 {
-        printf("%s", value_type_to_string(type.type));
-        switch (type.type) {
+        printf("%s", value_type_to_string(type.id));
+        switch (type.id) {
                 case VAL_VECTOR: {
                         printf(" ");
-                        for (int i = 0; i < type.meta.vector.rank; i++) {
-                                printf("%d ", type.meta.vector.dimensions[i]);
+                        for (int i = 0; i < type.rank; i++) {
+                                printf("%d ", type.dimensions[i]);
                         }
                         printf("of ");
-                        semantic_type_print(scalar_semantic_type(type.meta.vector.base));
+                        semantic_type_print(semantic_type_scalar(type.base));
                         return;
                 }
                 default:
@@ -327,18 +338,18 @@ semantic_type_print(struct semantic_type type)
 void
 run_type_print(struct run_type type)
 {
-        printf("%s", value_type_to_string(type.type));
+        printf("%s", value_type_to_string(type.id));
 }
 
 struct run_type
 semantic_type_to_run_type(struct semantic_type st)
 {
         struct run_type rt;
-        rt.type = st.type;
-        switch (st.type) {
+        rt.id = st.id;
+        switch (st.id) {
                 case VAL_VECTOR:
-                        rt.meta.vector.rank = st.meta.vector.rank;
-                        rt.meta.vector.size = st.meta.vector.size;
+                        rt.rank = st.rank;
+                        rt.size = st.size;
                         break;
                 default:
                         break;
@@ -363,5 +374,5 @@ index_flattened(int *dimensions, int *indices, int length)
 struct value
 vector_value_get_element_at(struct value vec, int i)
 {
-        return *(vec.as.vector.astackent - vec.type.meta.vector.size + i);
+        return *(vec.as.vector.astackent - vec.type.size + i);
 }

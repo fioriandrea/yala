@@ -64,15 +64,11 @@ enum value_type {
 #define MAX_VECTOR_DIMENSIONS 50
 
 struct semantic_type {
-        enum value_type type;
-        union {
-                struct {
-                        enum value_type base;
-                        int dimensions[MAX_VECTOR_DIMENSIONS];
-                        int rank;
-                        int size;
-                } vector;
-        } meta;
+        enum value_type id;
+        enum value_type base;
+        int dimensions[MAX_VECTOR_DIMENSIONS];
+        int rank;
+        int size;
 };
 
 struct value_string {
@@ -86,14 +82,10 @@ struct value_vector {
 };
 
 struct run_type {
-        enum value_type type;
-        union {
-                struct {
-                        int *dimensions;
-                        int rank;
-                        int size;
-                } vector;
-        } meta;
+        enum value_type id;
+        int *dimensions;
+        int rank;
+        int size;
 };
 
 struct value {
@@ -106,6 +98,7 @@ struct value {
         } as;
 };
 
+struct run_type run_type_scalar(enum value_type id);
 void value_print(struct value v);
 struct value value_from_c_int(int i);
 struct value value_from_c_bool(int b);
@@ -118,7 +111,7 @@ int types_comparable(struct semantic_type lefttype, struct semantic_type rightty
 int compare_values(struct value val0, struct value val1);
 int semantic_type_equal(struct semantic_type type0, struct semantic_type type1);
 struct run_type semantic_type_to_run_type(struct semantic_type st);
-struct semantic_type scalar_semantic_type(enum value_type vt);
+struct semantic_type semantic_type_scalar(enum value_type vt);
 void semantic_type_print(struct semantic_type semantic_type);
 void run_type_print(struct run_type type);
 char * value_type_to_string(enum value_type vt);

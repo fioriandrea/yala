@@ -40,7 +40,7 @@ pusha(struct vm *vm, struct value val)
 static void
 popa(struct vm *vm) {
         vm->asp--;
-        while (vm->asp > vm->astack && vm->asp->type.type != VAL_VECTOR)
+        while (vm->asp > vm->astack && vm->asp->type.id != VAL_VECTOR)
                 vm->asp--;
 }
 
@@ -185,7 +185,7 @@ vm_run(struct vm *vm)
                 break;
         case OP_POPV:
                 val0 = popv(vm);
-                if (val0.type.type == VAL_VECTOR) {
+                if (val0.type.id == VAL_VECTOR) {
                         popa(vm);
                 }
                 break;
@@ -206,7 +206,7 @@ vm_run(struct vm *vm)
                         pushd(vm, val0.as.integer);
                 }
                 val1 = popv(vm);
-                val1.type.meta.vector.dimensions = vm->dsp - val0.as.integer;
+                val1.type.dimensions = vm->dsp - val0.as.integer;
                 pushv(vm, val1);
                 break;
         case OP_NEWLINE:
@@ -240,35 +240,35 @@ vm_run(struct vm *vm)
                 }
                 val0 = popv(vm);
                 for (int i = 0; i < arg0; i++) {
-                        if (indicesbuff[i] >= val0.type.meta.vector.dimensions[i] || indicesbuff[i] < 0) {
-                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.meta.vector.dimensions[i] - 1);
+                        if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
+                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.dimensions[i] - 1);
                                 return 1;
                         }
                 }
-                if (arg0 == val0.type.meta.vector.rank) {
-                        pushv(vm, vector_value_get_element_at(val0, index_flattened(val0.type.meta.vector.dimensions ,indicesbuff, arg0)));
+                if (arg0 == val0.type.rank) {
+                        pushv(vm, vector_value_get_element_at(val0, index_flattened(val0.type.dimensions ,indicesbuff, arg0)));
                 } else {
-                        for (int i = arg0; i < val0.type.meta.vector.rank; i++) {
+                        for (int i = arg0; i < val0.type.rank; i++) {
                                 indicesbuff[i] = 0;
                         }
-                        int start = index_flattened(val0.type.meta.vector.dimensions, indicesbuff, val0.type.meta.vector.rank);
+                        int start = index_flattened(val0.type.dimensions, indicesbuff, val0.type.rank);
                         int count = 1;
-                        for (int i = arg0; i < val0.type.meta.vector.rank; i++) {
-                                count *= val0.type.meta.vector.dimensions[i];
+                        for (int i = arg0; i < val0.type.rank; i++) {
+                                count *= val0.type.dimensions[i];
                         }
                         for (int i = start; i < start + count; i++) {
                                 struct value from_main_vector = vector_value_get_element_at(val0, i);
                                 pusha(vm, from_main_vector);
                         }
                         struct value result_value;
-                        result_value.type.type = VAL_VECTOR;
-                        result_value.type.meta.vector.rank = val0.type.meta.vector.rank - arg0;
-                        result_value.type.meta.vector.size = count;
+                        result_value.type.id = VAL_VECTOR;
+                        result_value.type.rank = val0.type.rank - arg0;
+                        result_value.type.size = count;
                         pusha(vm, result_value);
                         result_value.as.vector.astackent = vm->asp - 1;
-                        result_value.type.meta.vector.dimensions = vm->dsp;
+                        result_value.type.dimensions = vm->dsp;
                         for (int i = 0; i < count; i++) {
-                                pushd(vm, val0.type.meta.vector.dimensions[i + arg0]);
+                                pushd(vm, val0.type.dimensions[i + arg0]);
                         }
                         pushv(vm, result_value);
                 }

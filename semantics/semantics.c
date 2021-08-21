@@ -135,11 +135,9 @@ emit_expression(struct environment *env, struct tree_node *root)
         struct local local;
         struct bytecode *code = env->code;
         int codelen, localindex;
-        inttype = scalar_semantic_type(VAL_INTEGER);
-        booltype = scalar_semantic_type(VAL_BOOLEAN);
-        strtype = scalar_semantic_type(VAL_STRING);
-        booltype.type = VAL_BOOLEAN;
-        strtype.type = VAL_STRING;
+        inttype = semantic_type_scalar(VAL_INTEGER);
+        booltype = semantic_type_scalar(VAL_BOOLEAN);
+        strtype = semantic_type_scalar(VAL_STRING);
         switch (root->type) {
         case NODE_AND_EXPR:
                 lefttype = emit_expression(env, root->left);
@@ -147,7 +145,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 codelen = bytes_len(&code->code);
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
-                if (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN) {
+                if (lefttype.id != VAL_BOOLEAN || righttype.id != VAL_BOOLEAN) {
                         semantic_error(env, root, "operands must be booleans");
                 }
                 patch_skip_long(env, root, codelen);
@@ -159,14 +157,14 @@ emit_expression(struct environment *env, struct tree_node *root)
                 codelen = bytes_len(&code->code);
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
-                if (lefttype.type != VAL_BOOLEAN || righttype.type != VAL_BOOLEAN) {
+                if (lefttype.id != VAL_BOOLEAN || righttype.id != VAL_BOOLEAN) {
                         semantic_error(env, root, "operands must be booleans");
                 }
                 patch_skip_long(env, root, codelen);
                 return booltype;
         case NODE_NOT_EXPR:
                 lefttype = emit_expression(env, root->left);
-                if (lefttype.type != VAL_BOOLEAN) {
+                if (lefttype.id != VAL_BOOLEAN) {
                         semantic_error(env, root, "operand must be a boolean");
                 }
                 emit_byte(env, root, OP_NOT);
@@ -174,7 +172,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_PLUS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
+                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_ADDI);
@@ -182,7 +180,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_MINUS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
+                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_SUBI);
@@ -190,7 +188,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_TIMES_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
+                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_MULI);
@@ -198,7 +196,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_DIVIDE_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
-                if (lefttype.type != VAL_INTEGER || righttype.type != VAL_INTEGER) {
+                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operands must be integers");
                 }
                 emit_byte(env, root, OP_DIVI);
@@ -206,7 +204,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_NEG_EXPR:
                 emit_byte(env, root, OP_ZERO);
                 lefttype = emit_expression(env, root->left);
-                if (lefttype.type != VAL_INTEGER) {
+                if (lefttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operand must be an integer");
                 }
                 emit_byte(env, root, OP_SUBI);
@@ -402,13 +400,13 @@ type_node_to_type(struct environment *env, struct tree_node *node)
         struct semantic_type type;
         switch (node->type) {
         case NODE_STRING_TYPE:
-                type = scalar_semantic_type(VAL_STRING);
+                type = semantic_type_scalar(VAL_STRING);
                 break;
         case NODE_INTEGER_TYPE:
-                type = scalar_semantic_type(VAL_INTEGER);
+                type = semantic_type_scalar(VAL_INTEGER);
                 break;
         case NODE_BOOLEAN_TYPE:
-                type = scalar_semantic_type(VAL_BOOLEAN);
+                type = semantic_type_scalar(VAL_BOOLEAN);
                 break;
         case NODE_VECTOR_TYPE:
                 return vector_type_node_to_type(env, node);
@@ -422,21 +420,21 @@ static struct semantic_type
 vector_type_node_to_type(struct environment *env, struct tree_node *node)
 {
         struct semantic_type type;
-        type.type = VAL_VECTOR;
-        type.meta.vector.size = parse_integer_token(node->left->value);
-        type.meta.vector.dimensions[0] = type.meta.vector.size;
-        type.meta.vector.rank = 1;
+        type.id = VAL_VECTOR;
+        type.size = parse_integer_token(node->left->value);
+        type.dimensions[0] = type.size;
+        type.rank = 1;
 
         struct semantic_type inside = type_node_to_type(env, node->right);
-        type.meta.vector.base = inside.meta.vector.base;
-        if (inside.type == VAL_VECTOR) {
-                for (int i = 0; i < inside.meta.vector.rank; i++) {
-                        if (type.meta.vector.rank == MAX_VECTOR_DIMENSIONS - 1) {
+        type.base = inside.base;
+        if (inside.id == VAL_VECTOR) {
+                for (int i = 0; i < inside.rank; i++) {
+                        if (type.rank == MAX_VECTOR_DIMENSIONS - 1) {
                                 semantic_error(env, node, "maximum vector rank exceeded");
                                 break;
                         }
-                        type.meta.vector.dimensions[type.meta.vector.rank++] = inside.meta.vector.dimensions[i];
-                        type.meta.vector.size += inside.meta.vector.dimensions[i];
+                        type.dimensions[type.rank++] = inside.dimensions[i];
+                        type.size += inside.dimensions[i];
                 }
         }
         return type; 
@@ -484,7 +482,7 @@ emit_pop_scope(struct environment *env, struct tree_node *node)
 static void
 emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type)
 {
-        switch (type.type) {
+        switch (type.id) {
         case VAL_BOOLEAN:
                 emit_byte(env, node, OP_FALSE);
                 break;
@@ -495,8 +493,8 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                 emit_byte(env, node, OP_EMPTY_STRING);
                 break;
         case VAL_VECTOR: {
-                for (int i = 0; i < type.meta.vector.size; i++) {
-                        emit_variable_default(env, node, scalar_semantic_type(type.meta.vector.base));
+                for (int i = 0; i < type.size; i++) {
+                        emit_variable_default(env, node, semantic_type_scalar(type.base));
                         emit_byte(env, node, OP_POP_TO_ASTACK);
                 }
                 emit_byte(env, node, OP_LOAD_AND_LINK_VEC_TO_ASTACK);
@@ -547,7 +545,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
         child = root->child;
         while (child != NULL && child->type == NODE_CONDITION_AND_STATEMENT) {
                 type1 = emit_expression(env, child->left);
-                if (type1.type != VAL_BOOLEAN) {
+                if (type1.id != VAL_BOOLEAN) {
                         semantic_error(env, child->left, "if condition must be boolean");
                         return;
                 }
@@ -581,7 +579,7 @@ emit_while_statement(struct environment *env, struct tree_node *root)
         struct bytecode *code = env->code;
         startlen = bytes_len(&code->code);
         type1 = emit_expression(env, root->left);
-        if (type1.type != VAL_BOOLEAN) {
+        if (type1.id != VAL_BOOLEAN) {
                 semantic_error(env, root->left, "while condition must be boolean");
                 return;
         }
@@ -605,7 +603,7 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
         emit_statement(env, root->left);
 
         type1 = emit_expression(env, root->right);
-        if (type1.type != VAL_BOOLEAN) {
+        if (type1.id != VAL_BOOLEAN) {
                 semantic_error(env, root->right, "until condition must be boolean");
                 return;
         }
@@ -631,7 +629,7 @@ emit_assign_statement(struct environment *env, struct tree_node *root)
         if (!env->error && (local.perms & LOCAL_PERM_W) == 0) {
                 semantic_error(env, root, "cannot assign read-only variable");
         }
-        if (!env->error && local.type.type != righttype.type) {
+        if (!env->error && local.type.id != righttype.id) {
                 semantic_error(env, root, "mismatching types in assignment");
         }
         emit_three_bytes(env, root, OP_SET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
@@ -662,7 +660,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         emit_push_scope(env, root);
 
         struct semantic_type inttype;
-        inttype.type = VAL_INTEGER;
+        inttype.id = VAL_INTEGER;
         int incindex = emit_declare_local(env, assign->left, inttype, LOCAL_PERM_RW);
         emit_assign_statement(env, assign);
         env->locals[env->count - 1].perms = LOCAL_PERM_R;
@@ -670,7 +668,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         int forcond_index = emit_declare_local(env, &forcond_node, inttype, LOCAL_PERM_R);
         struct semantic_type type1;
         type1 = emit_expression(env, condition->right);
-        if (type1.type != VAL_INTEGER) {
+        if (type1.id != VAL_INTEGER) {
                 semantic_error(env, condition->right, "for loop upper range must be an integer");
                 return;
         }
@@ -709,7 +707,7 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
         child = root->child;
         while (child != NULL && child->type == NODE_CONDITION_AND_EXPRESSION) {
                 type1 = emit_expression(env, child->left);
-                if (type1.type != VAL_BOOLEAN) {
+                if (type1.id != VAL_BOOLEAN) {
                         semantic_error(env, child->left, "if condition must be boolean");
                         return type0;
                 }
@@ -719,7 +717,7 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
                 type1 = emit_expression(env, child->right);
                 if (child == root->child)
                         type0 = type1;
-                if (type0.type != type1.type) {
+                if (type0.id != type1.id) {
                         semantic_error(env, child, "conditional expression types must be the same");
                         return type0;
                 }
@@ -734,7 +732,7 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
                 child = child->next;
         }
         type1 = emit_expression(env, child);
-        if (type0.type != type1.type) {
+        if (type0.id != type1.id) {
                 semantic_error(env, child, "conditional expression types must be the same");
                 return type0;
         }
@@ -754,40 +752,40 @@ emit_indexing_expression(struct environment *env, struct tree_node *root)
         int index_count = 0;
 
         indexed_type = emit_expression(env, indexed);
-        if (indexed_type.type != VAL_VECTOR) {
+        if (indexed_type.id != VAL_VECTOR) {
                 semantic_error(env, indexed, "cannot index a non vector type");
         }
 
         while (index != NULL) {
                 index_type = emit_expression(env, index);
-                if (index_type.type != VAL_INTEGER) {
+                if (index_type.id != VAL_INTEGER) {
                         semantic_error(env, index, "cannot use a non integer as an index");
                 }
                 index_count++;
-                if (index_count > indexed_type.meta.vector.rank) {
-                        semantic_error(env, index, "maximum number of indices exceeded for array exceeded (%d)", indexed_type.meta.vector.rank);
+                if (index_count > indexed_type.rank) {
+                        semantic_error(env, index, "maximum number of indices exceeded for array exceeded (%d)", indexed_type.rank);
                 }
                 index = index->next;
         }
 
         struct semantic_type toret;
-        if (index_count == indexed_type.meta.vector.rank) {
-                toret = scalar_semantic_type(indexed_type.meta.vector.base);
+        if (index_count == indexed_type.rank) {
+                toret = semantic_type_scalar(indexed_type.base);
         } else {
                 struct semantic_type toret;
-                toret.type = VAL_VECTOR;
-                toret.meta.vector.base = indexed_type.meta.vector.base;
-                toret.meta.vector.rank = indexed_type.meta.vector.rank - index_count;
+                toret.id = VAL_VECTOR;
+                toret.base = indexed_type.base;
+                toret.rank = indexed_type.rank - index_count;
 
-                toret.meta.vector.size = indexed_type.meta.vector.size;
-                for (int i = index_count - 1; i < indexed_type.meta.vector.rank; i++) {
-                        toret.meta.vector.size /= indexed_type.meta.vector.dimensions[i];
+                toret.size = indexed_type.size;
+                for (int i = index_count - 1; i < indexed_type.rank; i++) {
+                        toret.size /= indexed_type.dimensions[i];
                 }
 
-                toret.meta.vector.size = 0;
-                for (int i = index_count; i < indexed_type.meta.vector.rank; i++) {
-                        toret.meta.vector.size += indexed_type.meta.vector.dimensions[i];
-                        toret.meta.vector.dimensions[i - index_count] = indexed_type.meta.vector.dimensions[i];
+                toret.size = 0;
+                for (int i = index_count; i < indexed_type.rank; i++) {
+                        toret.size += indexed_type.dimensions[i];
+                        toret.dimensions[i - index_count] = indexed_type.dimensions[i];
                 }
         }
 
@@ -807,15 +805,15 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
         }
 
         struct semantic_type type;
-        type.meta.vector.base = VAL_INTEGER;
+        type.base = VAL_INTEGER;
         int size = 0;
         if (root->child != NULL) {
                 type = emit_vector_constant(env, root->child, depth + 1);
-                toret.meta.vector.rank = type.meta.vector.rank + 1;
-                memcpy(toret.meta.vector.dimensions, type.meta.vector.dimensions, MAX_VECTOR_DIMENSIONS);
-                toret.meta.vector.base = type.meta.vector.base;
-                size = type.meta.vector.size;
-                toret.meta.vector.dimensions[toret.meta.vector.rank - 1] = 1;
+                toret.rank = type.rank + 1;
+                memcpy(toret.dimensions, type.dimensions, MAX_VECTOR_DIMENSIONS);
+                toret.base = type.base;
+                size = type.size;
+                toret.dimensions[toret.rank - 1] = 1;
 
                 for (struct tree_node *node = root->child->next; node != NULL; node = node->next) {
                         struct semantic_type current_type = emit_vector_constant(env, node, depth + 1);
@@ -823,13 +821,13 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                                 semantic_error(env, node, "vector elements must be homogeneous");
                                 break;
                         }
-                        size += type.meta.vector.size;
-                        toret.meta.vector.dimensions[toret.meta.vector.rank - 1]++;
+                        size += type.size;
+                        toret.dimensions[toret.rank - 1]++;
                 }       
         }
 
-        toret.type = VAL_VECTOR;
-        toret.meta.vector.size = size;
+        toret.id = VAL_VECTOR;
+        toret.size = size;
 
         if (depth != 0)
                 return toret;
@@ -849,11 +847,11 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
 static void
 emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type)
 {
-        for (int i = type.meta.vector.rank - 1; i >= 0; i--) {
+        for (int i = type.rank - 1; i >= 0; i--) {
                 emit_byte(env, root, OP_LOC);
-                emit_constant(env, root, value_from_c_int(type.meta.vector.dimensions[i]));
+                emit_constant(env, root, value_from_c_int(type.dimensions[i]));
         }
-        emit_two_bytes(env, root, OP_INIT_VEC_DIMS, type.meta.vector.rank);
+        emit_two_bytes(env, root, OP_INIT_VEC_DIMS, type.rank);
 }
 
 static int
@@ -921,10 +919,10 @@ disassemble_constant(struct bytecode *code, int ip)
 {
         uint8_t constantaddr = bytes_at(&code->code, ip++);
         struct value val = valuelist_at(&code->constants, constantaddr);
-        if (val.type.type != VAL_VECTOR)
+        if (val.type.id != VAL_VECTOR)
                 value_print(val);
         else
-                printf("%s", value_type_to_string(val.type.type));
+                printf("%s", value_type_to_string(val.type.id));
         printf(" ");
         return ip;
 }
