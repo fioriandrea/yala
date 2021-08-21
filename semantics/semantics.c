@@ -31,8 +31,6 @@ static int patch_skip_long(struct environment *env, struct tree_node *root, int 
 static void environment_init(struct environment *env, struct bytecode *code);
 static int environment_local_get(struct environment *env, struct token name, struct local *local);
 static void init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
-static uint8_t right_byte(uint16_t word);
-static uint8_t left_byte(uint16_t word);
 static int parse_boolean_token(struct token token);
 static int parse_integer_token(struct token token);
 static struct semantic_type type_node_to_type(struct environment *env, struct tree_node *node);
@@ -352,20 +350,8 @@ emit_constant(struct environment *env, struct tree_node *root, struct value val)
 static void
 emit_load_constant(struct environment *env, struct tree_node *root, struct value val)
 {
-        emit_byte(env, root, OP_LOC);
+        emit_byte(env, root, OP_LOC_LONG);
         emit_constant(env, root, val);
-}
-
-static uint8_t
-left_byte(uint16_t word)
-{
-        return word >> 8;
-}
-
-static uint8_t
-right_byte(uint16_t word)
-{
-        return word & 0xff;
 }
 
 static int
@@ -516,7 +502,7 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                         emit_variable_default(env, node, semantic_type_scalar(type.base));
                         emit_byte(env, node, OP_POP_TO_ASTACK);
                 }
-                emit_byte(env, node, OP_LOAD_AND_LINK_VEC_TO_ASTACK);
+                emit_byte(env, node, OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG);
                 struct value val;
                 val.type = semantic_type_to_run_type(type);
                 emit_constant(env, node, val);
@@ -810,7 +796,7 @@ emit_indexing_expression(struct environment *env, struct tree_node *root)
 
         indexed_type = emit_expression(env, indexed);
         if (indexed_type.id != VAL_VECTOR) {
-                semantic_error(env, indexed, "cannot index a non vector type");
+                semantic_error(env, indexed, "cannot index a non vector");
         }
 
         while (index != NULL) {
@@ -892,7 +878,7 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                 return toret;
         
 
-        emit_byte(env, root, OP_LOAD_AND_LINK_VEC_TO_ASTACK);
+        emit_byte(env, root, OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG);
         struct value val;
         val.type = semantic_type_to_run_type(toret);
         val.as.vector.astackent = NULL;
@@ -907,7 +893,7 @@ static void
 emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type)
 {
         for (int i = type.rank - 1; i >= 0; i--) {
-                emit_byte(env, root, OP_LOC);
+                emit_byte(env, root, OP_LOC_LONG);
                 emit_constant(env, root, value_from_c_int(type.dimensions[i]));
         }
         emit_two_bytes(env, root, OP_INIT_VEC_DIMS, type.rank);
@@ -948,8 +934,8 @@ opcodestring(enum opcode code)
         case OP_ILEQ: return "OP_ILEQ";
         case OP_ILT: return "OP_ILT";
         case OP_INIT_VEC_DIMS: return "OP_INIT_VEC_DIMS";
-        case OP_LOAD_AND_LINK_VEC_TO_ASTACK: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK";
-        case OP_LOC: return "OP_LOC";
+        case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG";
+        case OP_LOC_LONG: return "OP_LOC_LONG";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
@@ -977,7 +963,9 @@ disassemble_lineinfo(struct bytecode *code, int ip)
 static int
 disassemble_constant(struct bytecode *code, int ip)
 {
-        uint8_t constantaddr = bytes_at(&code->code, ip++);
+        uint8_t constantaddr_left = bytes_at(&code->code, ip++);
+        uint8_t constantaddr_right = bytes_at(&code->code, ip++);
+        uint16_t constantaddr = join_bytes(constantaddr_left, constantaddr_right);
         struct value val = valuelist_at(&code->constants, constantaddr);
         if (val.type.id != VAL_VECTOR)
                 value_print(val);
@@ -1023,10 +1011,10 @@ disassemble(struct bytecode *code)
                 printf("%d: %s ", ip, opcodestring(instruction));
                 ip++;
                 switch (instruction) {
-                case OP_LOC:
+                case OP_LOC_LONG:
                         ip = disassemble_constant(code, ip);
                         break;
-                case OP_LOAD_AND_LINK_VEC_TO_ASTACK:
+                case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG:
                         ip = disassemble_constant_vector(code, ip);
                         break;
                 case OP_SKIP_BACK_LONG:

@@ -11,7 +11,7 @@
 #define MAX_ARITY UINT8_MAX
 
 enum opcode {
-        OP_LOC, /* constants */
+        OP_LOC_LONG, /* constants */
 
         OP_ADDI, /* integer arithmetic */
         OP_SUBI,
@@ -44,7 +44,7 @@ enum opcode {
         OP_NEWLINE,
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
-        OP_LOAD_AND_LINK_VEC_TO_ASTACK,
+        OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG,
 
         OP_INIT_VEC_DIMS,
         OP_GET_INDEX,
@@ -119,6 +119,9 @@ char * value_type_to_string(enum value_type vt);
 int index_flattened(int *dimensions, int *indices, int length);
 struct value vector_value_get_element_at(struct value vec, int i);
 void vector_value_set_element_at(struct value vec, int i, struct value val);
+uint8_t left_byte(uint16_t word);
+uint8_t right_byte(uint16_t word);
+uint16_t join_bytes(uint8_t left, uint8_t right);
 
 struct lineinfo {
         int line;
@@ -153,10 +156,11 @@ struct bytecode {
 
 void bytecode_init(struct bytecode *code);
 int bytecode_write_byte(struct bytecode *code, uint8_t byte, struct lineinfo linfo);
+int bytecode_write_long(struct bytecode *code, uint16_t l, struct lineinfo linfo);
 int bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo);
 uint8_t bytecode_byte_at(struct bytecode *code, int i);
 struct lineinfo bytecode_lineinfo_at(struct bytecode *code, int i);
-struct value bytecode_constant_at(struct bytecode *code, uint8_t address);
+struct value bytecode_constant_at(struct bytecode *code, uint16_t address);
 void bytecode_free(struct bytecode *code);
 void disassemble(struct bytecode *code);
 

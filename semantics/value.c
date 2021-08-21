@@ -110,10 +110,17 @@ bytecode_write_byte(struct bytecode *code, uint8_t byte, struct lineinfo linfo)
 }
 
 int
+bytecode_write_long(struct bytecode *code, uint16_t l, struct lineinfo linfo)
+{
+        bytecode_write_byte(code, left_byte(l), linfo);
+        return bytecode_write_byte(code, right_byte(l), linfo);
+}
+
+int
 bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo)
 {
         int addr = valuelist_push(&code->constants, val) - 1;
-        return bytecode_write_byte(code, addr, linfo);
+        return bytecode_write_long(code, addr, linfo);
 }
 
 uint8_t
@@ -129,7 +136,7 @@ bytecode_lineinfo_at(struct bytecode *code, int i)
 }
 
 struct value
-bytecode_constant_at(struct bytecode *code, uint8_t address)
+bytecode_constant_at(struct bytecode *code, uint16_t address)
 {
         return valuelist_at(&code->constants, address);
 }
@@ -381,4 +388,25 @@ void
 vector_value_set_element_at(struct value vec, int i, struct value val)
 {
         *(vec.as.vector.astackent - vec.type.size + i) = val;
+}
+
+uint8_t
+left_byte(uint16_t word)
+{
+        return word >> 8;
+}
+
+uint8_t
+right_byte(uint16_t word)
+{
+        return word & 0xff;
+}
+
+uint16_t
+join_bytes(uint8_t left, uint8_t right)
+{
+        uint16_t res = left;
+        res = ((uint16_t) res) << 8;
+        res = res | right;
+        return res;
 }

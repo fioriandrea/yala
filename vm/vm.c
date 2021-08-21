@@ -56,15 +56,6 @@ peekv(struct vm *vm, int offset)
         return *(vm->sp - offset);
 }
 
-static uint16_t
-join_bytes(uint8_t left, uint8_t right)
-{
-        uint16_t res = left;
-        res = ((uint16_t) res) << 8;
-        res = res | right;
-        return res;
-}
-
 static void
 runtime_error(struct vm *vm, int pos, char *fmt, ...)
 {
@@ -93,9 +84,11 @@ vm_run(struct vm *vm)
         for (;;) {
         current = advance_ip(vm);
         switch (current) {
-        case OP_LOC:
+        case OP_LOC_LONG:
                 arg0 = advance_ip(vm);
-                pushv(vm, bytecode_constant_at(vm->code, arg0));
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                pushv(vm, bytecode_constant_at(vm->code, arglong0));
                 break;
         case OP_ADDI:
                 val1 = popv(vm);
@@ -193,9 +186,11 @@ vm_run(struct vm *vm)
                 val0 = popv(vm);
                 pusha(vm, val0);
                 break;
-        case OP_LOAD_AND_LINK_VEC_TO_ASTACK:
+        case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG:
                 arg0 = advance_ip(vm);
-                vm->code->constants.buffer[arg0].as.vector.astackent = vm->asp;
+                arg1 = advance_ip(vm);
+                arglong0 = join_bytes(arg0, arg1);
+                vm->code->constants.buffer[arglong0].as.vector.astackent = vm->asp;
                 pusha(vm, bytecode_constant_at(vm->code, arg0));
                 pushv(vm, bytecode_constant_at(vm->code, arg0));
                 break;
