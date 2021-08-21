@@ -438,6 +438,9 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
         struct semantic_type type;
         type.id = VAL_VECTOR;
         type.size = parse_integer_token(node->left->value);
+        if (type.size <= 0) {
+                semantic_error(env, node->left, "cannot use a value <= 0 as a vector dimension");
+        }
         type.dimensions[0] = type.size;
         type.rank = 1;
 
