@@ -191,8 +191,8 @@ vm_run(struct vm *vm)
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
                 vm->code->constants.buffer[arglong0].as.vector.astackent = vm->asp;
-                pusha(vm, bytecode_constant_at(vm->code, arg0));
-                pushv(vm, bytecode_constant_at(vm->code, arg0));
+                pusha(vm, bytecode_constant_at(vm->code, arglong0));
+                pushv(vm, bytecode_constant_at(vm->code, arglong0));
                 break;
         case OP_INIT_VEC_DIMS:
                 arg0 = advance_ip(vm);
