@@ -185,6 +185,7 @@ struct environment {
         int depth;
         int count;
         int error;
+        int panic;
 };
 
 void emit_statement(struct environment *env, struct tree_node *root);

@@ -69,14 +69,14 @@ emit_statement(struct environment *env, struct tree_node *root)
                         node = node->next;
                 }
                 emit_pop_scope(env, root);
-                return;
+                break;
         case NODE_VAR_DECL:
                 node = root->left->child;
                 while (node != NULL) {
                         emit_declare_local(env, node, type_node_to_type(env, root->right), LOCAL_PERM_RW);
                         node = node->next;
                 }
-                return;
+                break;
         case NODE_WRITE_STAT:
                 count = 0;
                 node = root->child->child;
@@ -90,7 +90,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                         count++;
                 }
                 emit_two_bytes(env, root, OP_WRITE, count);
-                return;
+                break;
         case NODE_WRITELN_STAT:
                 count = 0;
                 node = root->child->child;
@@ -105,29 +105,31 @@ emit_statement(struct environment *env, struct tree_node *root)
                 }
                 emit_two_bytes(env, root, OP_WRITE, count);
                 emit_byte(env, root, OP_NEWLINE);
-                return;
+                break;
         case NODE_ASSIGN_STAT:
                 emit_assign_statement(env, root);
-                return;
+                break;
         case NODE_IF_STAT:
                 emit_if_statement(env, root);
-                return;
+                break;
         case NODE_WHILE_STAT:
                 emit_while_statement(env, root);
-                return;
+                break;
         case NODE_REPEAT_STAT:
                 emit_repeat_statement(env, root);
-                return;
+                break;
         case NODE_FOR_STAT:
                 emit_for_statement(env, root);
-                return;
+                break;
         case NODE_EXPR_STAT:
                 emit_expression(env, root->child);
                 emit_byte(env, root, OP_POPV);
-                return;
+                break;
         default:
                 semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
+                break;
         }
+        env->panic = 0;
 }
 
 struct semantic_type
@@ -450,6 +452,7 @@ environment_init(struct environment *env, struct bytecode *code)
         env->count = 0;
         env->error = 0;
         env->depth = 0;
+        env->panic = 0;
 }
 
 static int
@@ -1059,9 +1062,10 @@ disassemble(struct bytecode *code)
 static void
 semantic_error(struct environment *env, struct tree_node *root, char *fmt, ...)
 {
-        if (env->error)
+        if (env->panic)
                 return;
         env->error = 1;
+        env->panic = 1;
         va_list args;
         va_start(args, fmt);
         fprintf(stderr, "semantic error ");
