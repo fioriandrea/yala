@@ -78,19 +78,6 @@ emit_statement(struct environment *env, struct tree_node *root)
                 }
                 break;
         case NODE_WRITE_STAT:
-                count = 0;
-                node = root->child->child;
-                while (node != NULL) {
-                        if (count == MAX_ARITY) {
-                                semantic_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
-                                break;
-                        }
-                        emit_expression(env, node);
-                        node = node->next;
-                        count++;
-                }
-                emit_two_bytes(env, root, OP_WRITE, count);
-                break;
         case NODE_WRITELN_STAT:
                 count = 0;
                 node = root->child->child;
@@ -104,7 +91,8 @@ emit_statement(struct environment *env, struct tree_node *root)
                         count++;
                 }
                 emit_two_bytes(env, root, OP_WRITE, count);
-                emit_byte(env, root, OP_NEWLINE);
+                if (root->type == NODE_WRITELN_STAT)
+                        emit_byte(env, root, OP_NEWLINE);
                 break;
         case NODE_ASSIGN_STAT:
                 emit_assign_statement(env, root);
@@ -983,20 +971,11 @@ disassemble_constant(struct bytecode *code, int ip)
         uint8_t constantaddr_right = bytes_at(&code->code, ip++);
         uint16_t constantaddr = join_bytes(constantaddr_left, constantaddr_right);
         struct value val = valuelist_at(&code->constants, constantaddr);
+        printf("%d ", constantaddr);
         if (val.type.id != VAL_VECTOR)
                 value_print(val);
         else
                 printf("%s", value_type_to_string(val.type.id));
-        printf(" ");
-        return ip;
-}
-
-static int
-disassemble_constant_vector(struct bytecode *code, int ip)
-{
-        uint8_t constantaddr = bytes_at(&code->code, ip++);
-        struct value val = valuelist_at(&code->constants, constantaddr);
-        run_type_print(val.type);
         printf(" ");
         return ip;
 }
@@ -1028,10 +1007,8 @@ disassemble(struct bytecode *code)
                 ip++;
                 switch (instruction) {
                 case OP_LOC_LONG:
-                        ip = disassemble_constant(code, ip);
-                        break;
                 case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG:
-                        ip = disassemble_constant_vector(code, ip);
+                        ip = disassemble_constant(code, ip);
                         break;
                 case OP_SKIP_BACK_LONG:
                 case OP_SKIP_LONG:
