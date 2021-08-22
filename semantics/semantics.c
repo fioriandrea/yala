@@ -939,7 +939,7 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
 static void
 emit_vector_type(struct environment *env, struct tree_node *root, struct semantic_type type)
 {
-        for (int i = type.rank - 1; i >= 0; i--) {
+        for (int i = 0; i < type.rank; i++) {
                 emit_byte(env, root, OP_LOC_LONG);
                 emit_constant(env, root, value_from_c_int(type.dimensions[i]));
         }

@@ -6,6 +6,19 @@
 
 #include "vm.h"
 
+static void
+runtime_error(struct vm *vm, int pos, char *fmt, ...)
+{
+        va_list args;
+        va_start(args, fmt);
+        struct lineinfo linfo = linelist_at(&vm->code->lines, pos);
+        fprintf(stderr, "runtime error ");
+        fprintf(stderr, "[at %d:%d]: ", linfo.line, linfo.linepos);
+        vfprintf(stderr, fmt, args);
+        fprintf(stderr, "\n");
+        va_end(args);
+}
+
 void
 vm_init(struct vm *vm, struct bytecode *code)
 {
@@ -94,17 +107,6 @@ atob(char *s)
 #undef STR_FALSE_LEN
 }
 
-static int *
-read_indices(struct vm *vm, int *indicesbuff, int len)
-{
-        int *indicesbuffp = indicesbuff + len - 1;
-        for (int i = 0; i < len; i++) {
-                *indicesbuffp = popv(vm).as.integer;
-                indicesbuffp--;
-        }
-        return indicesbuffp;
-}
-
 static void
 dispatch_op_read(struct vm *vm, enum read_format rf, char *buffer, int cap)
 {
@@ -123,17 +125,27 @@ dispatch_op_read(struct vm *vm, enum read_format rf, char *buffer, int cap)
         }
 }
 
-static void
-runtime_error(struct vm *vm, int pos, char *fmt, ...)
+static int *
+read_indices(struct vm *vm, int *indicesbuff, int len)
 {
-        va_list args;
-        va_start(args, fmt);
-        struct lineinfo linfo = linelist_at(&vm->code->lines, pos);
-        fprintf(stderr, "runtime error ");
-        fprintf(stderr, "[at %d:%d]: ", linfo.line, linfo.linepos);
-        vfprintf(stderr, fmt, args);
-        fprintf(stderr, "\n");
-        va_end(args);
+        int *indicesbuffp = indicesbuff + len - 1;
+        for (int i = 0; i < len; i++) {
+                *indicesbuffp = popv(vm).as.integer;
+                indicesbuffp--;
+        }
+        return indicesbuffp;
+}
+
+static int
+is_out_of_bounds(struct vm *vm, struct value val, int *indicesbuff, int len)
+{
+        for (int i = 0; i < len; i++) {
+                if (indicesbuff[i] >= val.type.dimensions[i] || indicesbuff[i] < 0) {
+                        runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val.type.dimensions[i] - 1);
+                        return 1;
+                }
+        }
+        return 0;
 }
 
 int
@@ -147,7 +159,6 @@ vm_run(struct vm *vm)
         uint16_t arglong0;
 
         int indicesbuff[MAX_VECTOR_DIMENSIONS];
-        int *indicesbuffp;
 
         for (;;) {
         current = advance_ip(vm);
@@ -305,14 +316,10 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 val0 = vm->stack[arglong0];
 
-                indicesbuffp = read_indices(vm, indicesbuff, arg0);
+                read_indices(vm, indicesbuff, arg0);
 
-                for (int i = 0; i < arg0; i++) {
-                        if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
-                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.dimensions[i] - 1);
-                                return 1;
-                        }
-                }
+                if (is_out_of_bounds(vm, val0, indicesbuff, arg0))
+                        return 1;
 
                 val1 = popv(vm);
                 if (arg0 == val0.type.rank) {
@@ -330,15 +337,12 @@ vm_run(struct vm *vm)
         case OP_GET_INDEX:
                 arg0 = advance_ip(vm);
 
-                indicesbuffp = read_indices(vm, indicesbuff, arg0);
+                read_indices(vm, indicesbuff, arg0);
 
                 val0 = popv(vm);
-                for (int i = 0; i < arg0; i++) {
-                        if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
-                                runtime_error(vm, vm->ip - 1, "index out of bound (max index %d, got %d)", val0.type.dimensions[i] - 1, indicesbuff[i]);
-                                return 1;
-                        }
-                }
+                if (is_out_of_bounds(vm, val0, indicesbuff, arg0))
+                        return 1;
+
                 if (arg0 == val0.type.rank) {
                         pushv(vm, vector_value_get_element_at(val0, index_flattened(val0.type.dimensions ,indicesbuff, arg0)));
                 } else {
