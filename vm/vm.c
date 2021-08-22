@@ -94,6 +94,17 @@ atob(char *s)
 #undef STR_FALSE_LEN
 }
 
+static int *
+read_indices(struct vm *vm, int *indicesbuff, int len)
+{
+        int *indicesbuffp = indicesbuff + len - 1;
+        for (int i = 0; i < len; i++) {
+                *indicesbuffp = popv(vm).as.integer;
+                indicesbuffp--;
+        }
+        return indicesbuffp;
+}
+
 static void
 dispatch_op_read(struct vm *vm, enum read_format rf, char *buffer, int cap)
 {
@@ -294,11 +305,8 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 val0 = vm->stack[arglong0];
 
-                indicesbuffp = indicesbuff + arg0 - 1;
-                for (int i = 0; i < arg0; i++) {
-                        *indicesbuffp = popv(vm).as.integer;
-                        indicesbuffp--;
-                }
+                indicesbuffp = read_indices(vm, indicesbuff, arg0);
+
                 for (int i = 0; i < arg0; i++) {
                         if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
                                 runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val0.type.dimensions[i] - 1);
@@ -321,11 +329,9 @@ vm_run(struct vm *vm)
                 break;
         case OP_GET_INDEX:
                 arg0 = advance_ip(vm);
-                indicesbuffp = indicesbuff + arg0 - 1;
-                for (int i = 0; i < arg0; i++) {
-                        *indicesbuffp = popv(vm).as.integer;
-                        indicesbuffp--;
-                }
+
+                indicesbuffp = read_indices(vm, indicesbuff, arg0);
+
                 val0 = popv(vm);
                 for (int i = 0; i < arg0; i++) {
                         if (indicesbuff[i] >= val0.type.dimensions[i] || indicesbuff[i] < 0) {
