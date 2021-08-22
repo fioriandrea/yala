@@ -609,8 +609,7 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
                 return;
         }
 
-        emit_three_bytes(env, root->right, OP_SKIPF_LONG, 0, 1);
-        bytes_len(&code->code);
+        emit_three_bytes(env, root->right, OP_SKIPF_LONG, 0, 3);
         emit_skip_back_long(env, root->right, startlen);
 }
 
