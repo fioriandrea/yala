@@ -640,11 +640,9 @@ compute_lhs_type(struct environment *env, int localindex, struct tree_node *lhs)
                 struct semantic_type indexed_type = local.type;
                 struct tree_node *indices_node = lhs->right;
                 int index_count = 0;
-                for (struct tree_node *node = indices_node; node != NULL; node = node->next)
-                {
+                for (struct tree_node *node = indices_node; node != NULL; node = node->next) {
                         index_count++;
-                        if (emit_expression(env, node).id != VAL_INTEGER)
-                        {
+                        if (emit_expression(env, node).id != VAL_INTEGER) {
                                 semantic_error(env, node, "cannot index array with non integer");
                                 break;
                         }
