@@ -152,7 +152,7 @@ value_print(struct value v)
                 printf("%s", v.as.boolean ? "true" : "false");
                 return;
         case VAL_STRING:
-                printf("\"%.*s\"", v.as.string.length, v.as.string.str);
+                printf("%.*s", v.as.string.length, v.as.string.str);
                 return;
         case VAL_VECTOR:
                 printf("[");

@@ -31,6 +31,8 @@ static struct tree_node *stat_list(struct parser *ps);
 static struct tree_node *stat(struct parser *ps);
 static struct tree_node *write_stat(struct parser *ps);
 static struct tree_node *writeln_stat(struct parser *ps);
+static struct tree_node *read_stat(struct parser *ps);
+static int is_node_lhs(struct tree_node *lhs);
 static struct tree_node *if_stat(struct parser *ps);
 static struct tree_node *while_stat(struct parser *ps);
 static struct tree_node *repeat_stat(struct parser *ps);
@@ -134,6 +136,8 @@ stat(struct parser *ps)
                 return write_stat(ps);
         case TOKEN_WRITELN:
                 return writeln_stat(ps);
+        case TOKEN_READ:
+                return read_stat(ps);
         default:
                 return expr_stat(ps);
         }
@@ -217,6 +221,29 @@ writeln_stat(struct parser *ps)
 }
 
 static struct tree_node *
+read_stat(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_READ_STAT);
+        eat(ps, TOKEN_READ);
+        eat_error(ps, TOKEN_LPAREN);
+        res->child = expr_list(ps);
+        for (struct tree_node *lhs = res->child->child; lhs != NULL; lhs = lhs->next) {
+                if (!is_node_lhs(lhs)) {
+                        parse_error(ps, lhs->value, "cannot read into non lhs");
+                        break;
+                }
+        }
+        eat_error(ps, TOKEN_RPAREN);
+        return res;
+}
+
+static int
+is_node_lhs(struct tree_node *lhs)
+{
+        return lhs->type == NODE_ID || lhs->type == NODE_INDEXING;
+}
+
+static struct tree_node *
 wrap_expr_in_statement(struct tree_node *exprnode)
 {
         struct tree_node *node = new_tree_node(NODE_EXPR_STAT);
@@ -270,7 +297,7 @@ static struct tree_node *
 assign_stat_trial(struct parser *ps, struct tree_node *lhs)
 {
         advance(ps);
-        if (lhs->type != NODE_INDEXING && lhs->type != NODE_ID) {
+        if (!is_node_lhs(lhs)) {
                 error_at_current(ps, "invalid assignment target");
                 return lhs;
         }
@@ -831,6 +858,12 @@ node_type_string(enum node_type type)
         case NODE_WRITE_STAT: return "NODE_WRITE_STAT";
         }
         return "unreachable return in node_type_string";
+}
+
+struct tree_node *
+lhs_variable(struct tree_node *left)
+{
+        return left->type == NODE_INDEXING ? left->left : left;
 }
 
 static void

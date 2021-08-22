@@ -33,6 +33,7 @@ static int patch_skip_long(struct environment *env, struct tree_node *root, int 
 static void environment_init(struct environment *env, struct bytecode *code);
 static int environment_local_get(struct environment *env, struct token name);
 static void init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
+static void emit_read_type(struct environment *env, struct tree_node *node, struct semantic_type lhs_type);
 static int parse_boolean_token(struct token token);
 static int parse_integer_token(struct token token);
 static struct semantic_type type_node_to_type(struct environment *env, struct tree_node *node);
@@ -93,6 +94,29 @@ emit_statement(struct environment *env, struct tree_node *root)
                 emit_two_bytes(env, root, OP_WRITE, count);
                 if (root->type == NODE_WRITELN_STAT)
                         emit_byte(env, root, OP_NEWLINE);
+                break;
+        case NODE_READ_STAT:
+                count = 0;
+                node = root->child->child;
+                while (node != NULL) {
+                        if (count == MAX_ARITY) {
+                                semantic_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
+                                break;
+                        }
+                        struct tree_node *var = lhs_variable(node);
+                        int localindex = environment_local_get_check_write(env, var->value, root);
+                        if (localindex < 0)
+                                break;
+                        struct semantic_type lhs_type = compute_lhs_type(env, localindex, root->left);
+                        if (lhs_type.id == VAL_VECTOR) {
+                                semantic_error(env, node, "reading vectors is not supported");
+                                break;
+                        }
+                        emit_read_type(env, node, lhs_type);
+                        emit_op_set_local(env, node, localindex, lhs_type);
+                        node = node->next;
+                        count++;
+                }
                 break;
         case NODE_ASSIGN_STAT:
                 emit_assign_statement(env, root);
@@ -500,6 +524,25 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
 }
 
 static void
+emit_read_type(struct environment *env, struct tree_node *node, struct semantic_type lhs_type)
+{
+        emit_byte(env, node, OP_READ);
+        enum read_format fmt;
+        switch (lhs_type.id) {
+                case VAL_BOOLEAN:
+                       fmt = RF_BOOLEAN;
+                       break;
+                case VAL_INTEGER:
+                        fmt = RF_INTEGER;
+                        break;
+                case VAL_STRING:
+                        fmt = RF_STRING;
+                        break; 
+        }
+        emit_byte(env, node, fmt);
+}
+
+static void
 init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms)
 {
         loc->name = name;
@@ -665,7 +708,7 @@ emit_assign_statement(struct environment *env, struct tree_node *root)
 {
         struct tree_node *lhs = root->left;
         struct tree_node *rhs = root->right;
-        struct tree_node *var = lhs->type == NODE_INDEXING ? lhs->left : lhs;
+        struct tree_node *var = lhs_variable(lhs);
         struct semantic_type left_type, right_type;
 
         int localindex = environment_local_get_check_write(env, var->value, root);
@@ -946,6 +989,7 @@ opcodestring(enum opcode code)
         case OP_ONE: return "OP_ONE";
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
+        case OP_READ: return "OP_READ";
         case OP_SET_INDEXED_LOCAL_LONG: return "OP_SET_INDEXED_LOCAL_LONG";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
         case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
@@ -1020,6 +1064,7 @@ disassemble(struct bytecode *code)
                 case OP_WRITE:
                 case OP_GET_INDEX:
                 case OP_INIT_VEC_DIMS:
+                case OP_READ:
                         ip = disassemble_argument(code, ip);
                         break;
                 case OP_SET_INDEXED_LOCAL_LONG:

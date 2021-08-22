@@ -6,6 +6,7 @@
 #include "../semantics/semantics.h"
 
 #define STACK_MAX (1 << 10)
+#define OP_READ_BUF_CAP (1 << 10)
 
 struct vm {
         struct bytecode *code;

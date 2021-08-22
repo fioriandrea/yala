@@ -1,5 +1,8 @@
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "vm.h"
 
@@ -56,6 +59,59 @@ peekv(struct vm *vm, int offset)
         return *(vm->sp - offset);
 }
 
+/* removes trailing new line */
+static int
+mgetline(char *buff, int cap)
+{
+        char c;
+        char *p = buff;
+        while (p - buff < cap - 1 && (c = getchar()) != EOF && c != '\n') {
+                *p++ = c;
+        }
+        *p = '\0';
+        return p - buff;
+}
+
+static int
+atob(char *s)
+{
+#define STR_FALSE_LEN 6
+        int i = 0;
+        char buff[STR_FALSE_LEN + 1];
+
+        while (*s && isspace(*s)) {
+                s++;
+        }
+        while (*s && !isspace(*s) && i < STR_FALSE_LEN) {
+                buff[i++] = *s++;
+        }
+        buff[i] = '\0';
+        if (strcmp(buff, "true") == 0) {
+                return 1;
+        } else {
+                return 0;
+        }
+#undef STR_FALSE_LEN
+}
+
+static void
+dispatch_op_read(struct vm *vm, enum read_format rf, char *buffer, int cap)
+{
+        mgetline(buffer, cap);
+
+        switch (rf) {
+                case RF_BOOLEAN:
+                        pushv(vm, value_from_c_bool(atob(buffer)));
+                        break;
+                case RF_INTEGER:
+                        pushv(vm, value_from_c_int(atoi(buffer)));
+                        break;
+                case RF_STRING:
+                        pushv(vm, value_from_c_string(buffer));
+                        break;
+        }
+}
+
 static void
 runtime_error(struct vm *vm, int pos, char *fmt, ...)
 {
@@ -72,6 +128,7 @@ runtime_error(struct vm *vm, int pos, char *fmt, ...)
 int
 vm_run(struct vm *vm)
 {
+        char buffer[OP_READ_BUF_CAP];
         struct value val0;
         struct value val1;
         uint8_t current;
@@ -213,6 +270,10 @@ vm_run(struct vm *vm)
                         value_print(*p);
                 }
                 vm->sp = vm->sp - arg0;
+                break;
+        case OP_READ:
+                arg0 = advance_ip(vm);
+                dispatch_op_read(vm, arg0, buffer, OP_READ_BUF_CAP);
                 break;
         case OP_GET_LOCAL_LONG:
                 arg0 = advance_ip(vm);

@@ -149,6 +149,7 @@ struct tree_node {
 
 void tree_node_print(struct tree_node *root);
 struct tree_node *parse(char *program, int programlen);
+struct tree_node *lhs_variable(struct tree_node *left);
 void tree_node_free(struct tree_node *root);
 char *node_type_string(enum node_type type);
 

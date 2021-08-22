@@ -50,7 +50,15 @@ enum opcode {
         OP_GET_INDEX,
         OP_SET_INDEXED_LOCAL_LONG,
 
+        OP_READ,
+
         OP_HALT,
+};
+
+enum read_format {
+        RF_INTEGER,
+        RF_BOOLEAN,
+        RF_STRING,
 };
 
 char *opcodestring(enum opcode code);
