@@ -326,24 +326,24 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 arg0 = advance_ip(vm); /* how many indices */
                 arg1 = advance_ip(vm); /* rank */
+                val0 = vm->stack[arglong0];
 
                 load_indexing_prelude(vm, indicesbuff, arg0, dimensionsbuff, arg1);
 
-                val0 = vm->stack[arglong0];
 
                 if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
                         return 1;
 
                 val1 = popv(vm);
                 if (arg0 == arg1) {
-                        vector_value_set_element_at(val0, index_flattened(dimensionsbuff, indicesbuff, arg0), val1);
+                        val0.vector.astackent[index_flattened(dimensionsbuff, indicesbuff, arg0)] = val1;
                 } else {
                         for (int i = arg0; i < arg1; i++) {
                                 indicesbuff[i] = 0;
                         }
                         int start = index_flattened(dimensionsbuff, indicesbuff, arg1);
                         for (int i = 0; i < val1.vector.size; i++) {
-                                vector_value_set_element_at(val0, start + i, vector_value_get_element_at(val1, i));
+                                val0.vector.astackent[start + i] = val1.vector.astackent[i];
                         }
                 }
                 break;
@@ -359,7 +359,8 @@ vm_run(struct vm *vm)
                         return 1;
 
                 if (arg0 == arg1) {
-                        pushv(vm, vector_value_get_element_at(val0, index_flattened(dimensionsbuff,indicesbuff, arg0)));
+                        union value from_main_vector = val0.vector.astackent[index_flattened(dimensionsbuff, indicesbuff, arg0)];
+                        pushv(vm, from_main_vector);
                 } else {
                         for (int i = arg0; i < arg1; i++) {
                                 indicesbuff[i] = 0;
@@ -369,8 +370,8 @@ vm_run(struct vm *vm)
                         for (int i = arg0; i < arg1; i++) {
                                 count *= dimensionsbuff[i];
                         }
-                        for (int i = start; i < start + count; i++) {
-                                union value from_main_vector = vector_value_get_element_at(val0, i);
+                        for (int i = 0; i < count; i++) {
+                                union value from_main_vector = val0.vector.astackent[start + i];
                                 pusha(vm, from_main_vector);
                         }
                         union value result_value;

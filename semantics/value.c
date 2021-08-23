@@ -157,7 +157,7 @@ value_print(union value v, enum value_type type, enum value_type base)
         case VAL_VECTOR:
                 printf("[");
                 for (int i = 0; i < v.vector.size; i++) {
-                        value_print(vector_value_get_element_at(v, i), base, base);
+                        value_print(v.vector.astackent[i], base, base);
                         printf(i == v.vector.size - 1 ? "" : ", ");
                 }
                 printf("]");
@@ -339,18 +339,6 @@ index_flattened(int *dimensions, int *indices, int length)
                 res += term;
         }
         return res;
-}
-
-union value
-vector_value_get_element_at(union value vec, int i)
-{
-        return *(vec.vector.astackent + i);
-}
-
-void
-vector_value_set_element_at(union value vec, int i, union value val)
-{
-        *(vec.vector.astackent + i) = val;
 }
 
 uint8_t
