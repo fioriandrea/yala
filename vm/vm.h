@@ -11,12 +11,10 @@
 struct vm {
         struct bytecode *code;
         int ip;
-        struct value *sp;
-        struct value stack[STACK_MAX];
-        struct value *asp;
-        struct value astack[STACK_MAX];
-        int *dsp;
-        int dstack[STACK_MAX];
+        union value *sp;
+        union value stack[STACK_MAX];
+        union value *asp;
+        union value astack[STACK_MAX];
 };
 
 void vm_init(struct vm *vm, struct bytecode *code);

@@ -25,7 +25,6 @@ vm_init(struct vm *vm, struct bytecode *code)
         vm->code = code;
         vm->sp = vm->stack;
         vm->asp = vm->astack;
-        vm->dsp = vm->dstack;
         vm->ip = 0;
 }
 
@@ -36,40 +35,34 @@ advance_ip(struct vm *vm)
 }
 
 static void
-pushv(struct vm *vm, struct value val)
+pushv(struct vm *vm, union value val)
 {
         *vm->sp++ = val;
 }
 
-static struct value
+static union value
 popv(struct vm *vm)
 {
         return *--vm->sp;
 }
 
+static union value
+peekv(struct vm *vm, int offset)
+{
+        return *(vm->sp - offset);
+}
+
 static void
-pusha(struct vm *vm, struct value val)
+pusha(struct vm *vm, union value val)
 {
         *vm->asp++ = val;
 }
 
 static void
-popa(struct vm *vm) {
-        vm->asp--;
-        while (vm->asp > vm->astack && vm->asp->type.id != VAL_VECTOR)
+popa(struct vm *vm, int size) {
+        for (int i = 0; i < size; i++) {
                 vm->asp--;
-}
-
-static void
-pushd(struct vm *vm, int i)
-{
-        *vm->dsp++ = i;
-}
-
-static struct value
-peekv(struct vm *vm, int offset)
-{
-        return *(vm->sp - offset);
+        }
 }
 
 /* removes trailing new line */
@@ -108,40 +101,40 @@ atob(char *s)
 }
 
 static void
-dispatch_op_read(struct vm *vm, enum read_format rf, char *buffer, int cap)
+dispatch_op_read(struct vm *vm, enum value_type vt, char *buffer, int cap)
 {
         mgetline(buffer, cap);
 
-        switch (rf) {
-                case RF_BOOLEAN:
+        switch (vt) {
+                case VAL_BOOLEAN:
                         pushv(vm, value_from_c_bool(atob(buffer)));
                         break;
-                case RF_INTEGER:
+                case VAL_INTEGER:
                         pushv(vm, value_from_c_int(atoi(buffer)));
                         break;
-                case RF_STRING:
+                case VAL_STRING:
                         pushv(vm, value_from_c_string(buffer));
                         break;
         }
 }
 
 static int *
-read_indices(struct vm *vm, int *indicesbuff, int len)
+read_from_stack_to_int_buffer(struct vm *vm, int buffer[], int len)
 {
-        int *indicesbuffp = indicesbuff + len - 1;
+        int *bufferp = buffer + len - 1;
         for (int i = 0; i < len; i++) {
-                *indicesbuffp = popv(vm).as.integer;
-                indicesbuffp--;
+                *bufferp = popv(vm).integer;
+                bufferp--;
         }
-        return indicesbuffp;
+        return bufferp;
 }
 
 static int
-is_out_of_bounds(struct vm *vm, struct value val, int *indicesbuff, int len)
+is_out_of_bounds(struct vm *vm, int *indicesbuff, int *vecdims, int len)
 {
         for (int i = 0; i < len; i++) {
-                if (indicesbuff[i] >= val.type.dimensions[i] || indicesbuff[i] < 0) {
-                        runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", val.type.dimensions[i] - 1);
+                if (indicesbuff[i] >= vecdims[i] || indicesbuff[i] < 0) {
+                        runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", vecdims[i] - 1);
                         return 1;
                 }
         }
@@ -152,13 +145,14 @@ int
 vm_run(struct vm *vm)
 {
         char buffer[OP_READ_BUF_CAP];
-        struct value val0;
-        struct value val1;
-        uint8_t current;
+        union value val0;
+        union value val1;
+        enum opcode current;
         uint8_t arg0, arg1;
         uint16_t arglong0;
 
         int indicesbuff[MAX_VECTOR_DIMENSIONS];
+        int dimensionsbuff[MAX_VECTOR_DIMENSIONS];
 
         for (;;) {
         current = advance_ip(vm);
@@ -169,58 +163,68 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 pushv(vm, bytecode_constant_at(vm->code, arglong0));
                 break;
+        case OP_PUSH_BYTE:
+                val0 = value_from_c_int(advance_ip(vm));
+                pushv(vm, val0);
+                break;
         case OP_ADDI:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_int(val0.as.integer + val1.as.integer));
+                pushv(vm, value_from_c_int(val0.integer + val1.integer));
                 break;
         case OP_SUBI:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_int(val0.as.integer - val1.as.integer));
+                pushv(vm, value_from_c_int(val0.integer - val1.integer));
                 break;
         case OP_MULI:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_int(val0.as.integer * val1.as.integer));
+                pushv(vm, value_from_c_int(val0.integer * val1.integer));
                 break;
         case OP_DIVI:
                 val1 = popv(vm);
                 val0 = popv(vm);
-                if (val1.as.integer == 0) {
+                if (val1.integer == 0) {
                         runtime_error(vm, vm->ip - 1, "division by 0");
                         return 0;
                 }
-                pushv(vm, value_from_c_int(val0.as.integer / val1.as.integer));
+                pushv(vm, value_from_c_int(val0.integer / val1.integer));
                 break;
         case OP_IGRT:
+                arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(compare_values(val0, val1) > 0));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) > 0));
                 break;
         case OP_IGRTEQ:
+                arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(compare_values(val0, val1) >= 0));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) >= 0));
                 break;
         case OP_ILT:
+                arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(compare_values(val0, val1) < 0));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) < 0));
                 break;
         case OP_ILEQ:
+                arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(compare_values(val0, val1) <= 0));
+                pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) <= 0));
                 break;
         case OP_EQUA:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(values_equal(val0, val1)));
+                pushv(vm, value_from_c_bool(values_equal(val0, val1, arg0, arg1)));
                 break;
         case OP_NOT:
                 val0 = popv(vm);
-                pushv(vm, value_from_c_bool(!val0.as.boolean));
+                pushv(vm, value_from_c_bool(!val0.boolean));
                 break;
         case OP_ZERO:
                 pushv(vm, value_from_c_int(0));
@@ -251,15 +255,16 @@ vm_run(struct vm *vm)
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
                 val0 = peekv(vm, 1);
-                if (!val0.as.boolean) {
+                if (!val0.boolean) {
                         vm->ip += arglong0;
                 }
                 break;
         case OP_POPV:
+                popv(vm);
+                break;
+        case OP_POPA:
                 val0 = popv(vm);
-                if (val0.type.id == VAL_VECTOR) {
-                        popa(vm);
-                }
+                popa(vm, val0.vector.size);
                 break;
         case OP_POP_TO_ASTACK:
                 val0 = popv(vm);
@@ -269,30 +274,29 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
-                vm->code->constants.buffer[arglong0].as.vector.astackent = vm->asp;
-                pusha(vm, bytecode_constant_at(vm->code, arglong0));
+                vm->code->constants.buffer[arglong0].vector.astackent = vm->asp - vm->code->constants.buffer[arglong0].vector.size;
                 pushv(vm, bytecode_constant_at(vm->code, arglong0));
-                break;
-        case OP_INIT_VEC_DIMS:
-                arg0 = advance_ip(vm);
-                for (int i = 0; i < arg0; i++) {
-                        val0 = popv(vm);
-                        pushd(vm, val0.as.integer);
-                }
-                val1 = popv(vm);
-                val1.type.dimensions = vm->dsp - arg0;
-                pushv(vm, val1);
                 break;
         case OP_NEWLINE:
                 printf("\n");
                 break;
-        case OP_WRITE:
+        case OP_WRITE: {
                 arg0 = advance_ip(vm);
-                for (struct value *p = vm->sp - arg0; p < vm->sp; p++) {
-                        value_print(*p);
+                for (union value *p = vm->sp - arg0 * 3; p < vm->sp;) {
+                        union value val = *p++;
+                        enum value_type type = (p++)->integer;
+                        enum value_type base = (p++)->integer;
+                        value_print(val, type, base);
                 }
-                vm->sp = vm->sp - arg0;
+                for (int i = 0; i < arg0; i++) {
+                        popv(vm);
+                        enum value_type type = popv(vm).integer;
+                        union value val = popv(vm);
+                        if (type == VAL_VECTOR)
+                                popa(vm, val.vector.size);
+                }
                 break;
+        }
         case OP_READ:
                 arg0 = advance_ip(vm);
                 dispatch_op_read(vm, arg0, buffer, OP_READ_BUF_CAP);
@@ -313,61 +317,58 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
-                arg0 = advance_ip(vm);
+                arg0 = advance_ip(vm); /* how many indices */
+                arg1 = advance_ip(vm); /* rank */
                 val0 = vm->stack[arglong0];
 
-                read_indices(vm, indicesbuff, arg0);
+                read_from_stack_to_int_buffer(vm, dimensionsbuff, arg1);
+                read_from_stack_to_int_buffer(vm, indicesbuff, arg0);
 
-                if (is_out_of_bounds(vm, val0, indicesbuff, arg0))
+                if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
                         return 1;
 
                 val1 = popv(vm);
-                if (arg0 == val0.type.rank) {
-                        vector_value_set_element_at(val0, index_flattened(val0.type.dimensions, indicesbuff, arg0), val1);
+                if (arg0 == arg1) {
+                        vector_value_set_element_at(val0, index_flattened(dimensionsbuff, indicesbuff, arg0), val1);
                 } else {
-                        for (int i = arg0; i < val0.type.rank; i++) {
+                        for (int i = arg0; i < arg1; i++) {
                                 indicesbuff[i] = 0;
                         }
-                        int start = index_flattened(val0.type.dimensions, indicesbuff, val0.type.rank);
-                        for (int i = 0; i < val1.type.size; i++) {
+                        int start = index_flattened(dimensionsbuff, indicesbuff, arg1);
+                        for (int i = 0; i < val1.vector.size; i++) {
                                 vector_value_set_element_at(val0, start + i, vector_value_get_element_at(val1, i));
                         }
                 }
                 break;
         case OP_GET_INDEX:
                 arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
 
-                read_indices(vm, indicesbuff, arg0);
+                read_from_stack_to_int_buffer(vm, dimensionsbuff, arg1);
+                read_from_stack_to_int_buffer(vm, indicesbuff, arg0);
 
                 val0 = popv(vm);
-                if (is_out_of_bounds(vm, val0, indicesbuff, arg0))
+                if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
                         return 1;
 
-                if (arg0 == val0.type.rank) {
-                        pushv(vm, vector_value_get_element_at(val0, index_flattened(val0.type.dimensions ,indicesbuff, arg0)));
+                if (arg0 == arg1) {
+                        pushv(vm, vector_value_get_element_at(val0, index_flattened(dimensionsbuff,indicesbuff, arg0)));
                 } else {
-                        for (int i = arg0; i < val0.type.rank; i++) {
+                        for (int i = arg0; i < arg1; i++) {
                                 indicesbuff[i] = 0;
                         }
-                        int start = index_flattened(val0.type.dimensions, indicesbuff, val0.type.rank);
+                        int start = index_flattened(dimensionsbuff, indicesbuff, arg1);
                         int count = 1;
-                        for (int i = arg0; i < val0.type.rank; i++) {
-                                count *= val0.type.dimensions[i];
+                        for (int i = arg0; i < arg1; i++) {
+                                count *= dimensionsbuff[i];
                         }
                         for (int i = start; i < start + count; i++) {
-                                struct value from_main_vector = vector_value_get_element_at(val0, i);
+                                union value from_main_vector = vector_value_get_element_at(val0, i);
                                 pusha(vm, from_main_vector);
                         }
-                        struct value result_value;
-                        result_value.type.id = VAL_VECTOR;
-                        result_value.type.rank = val0.type.rank - arg0;
-                        result_value.type.size = count;
-                        pusha(vm, result_value);
-                        result_value.as.vector.astackent = vm->asp - 1;
-                        result_value.type.dimensions = vm->dsp;
-                        for (int i = 0; i < count; i++) {
-                                pushd(vm, val0.type.dimensions[i + arg0]);
-                        }
+                        union value result_value;
+                        result_value.vector.size = count;
+                        result_value.vector.astackent = vm->asp - count;
                         pushv(vm, result_value);
                 }
                 break;
