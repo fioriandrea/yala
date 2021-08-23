@@ -277,7 +277,7 @@ vm_run(struct vm *vm)
                 val0 = popv(vm);
                 pusha(vm, val0);
                 break;
-        case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG:
+        case OP_LOC_ALINK_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
@@ -320,7 +320,7 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 vm->stack[arglong0] = popv(vm);
                 break;
-        case OP_SET_INDEXED_LOCAL_LONG:
+        case OP_SET_INDEX_LOCAL_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);

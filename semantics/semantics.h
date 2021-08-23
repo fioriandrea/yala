@@ -46,10 +46,10 @@ enum opcode {
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
         OP_POPA,
-        OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG,
+        OP_LOC_ALINK_LONG,
 
         OP_GET_INDEX,
-        OP_SET_INDEXED_LOCAL_LONG,
+        OP_SET_INDEX_LOCAL_LONG,
 
         OP_READ,
 

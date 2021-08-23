@@ -514,7 +514,7 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                         emit_variable_default(env, node, semantic_type_scalar(type.base));
                         emit_byte(env, node, OP_POP_TO_ASTACK);
                 }
-                emit_byte(env, node, OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG);
+                emit_byte(env, node, OP_LOC_ALINK_LONG);
                 union value val;
                 val.vector.size = type.size;
                 emit_constant(env, node, val);
@@ -696,7 +696,7 @@ emit_op_set_local(struct environment *env, struct tree_node *node, int localinde
         struct local loc = env->locals[localindex];
         switch (loc.type.id) {
                 case VAL_VECTOR:
-                        emit_three_bytes(env, node, OP_SET_INDEXED_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
+                        emit_three_bytes(env, node, OP_SET_INDEX_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
                         emit_byte(env, node, loc.type.rank - rhs_type.rank);
                         emit_byte(env, node, loc.type.rank);
                         break;
@@ -905,7 +905,7 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
         if (depth != 0)
                 return toret;
 
-        emit_byte(env, root, OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG);
+        emit_byte(env, root, OP_LOC_ALINK_LONG);
         union value val;
         val.vector.astackent = NULL;
         val.vector.size = toret.size;
@@ -948,7 +948,7 @@ opcodestring(enum opcode code)
         case OP_GRT: return "OP_GRT";
         case OP_LEQ: return "OP_LEQ";
         case OP_LT: return "OP_LT";
-        case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG";
+        case OP_LOC_ALINK_LONG: return "OP_LOC_ALINK_LONG";
         case OP_LOC_LONG: return "OP_LOC_LONG";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
@@ -959,7 +959,7 @@ opcodestring(enum opcode code)
         case OP_POPV: return "OP_POPV";
         case OP_PUSH_BYTE: return "OP_PUSH_BYTE";
         case OP_READ: return "OP_READ";
-        case OP_SET_INDEXED_LOCAL_LONG: return "OP_SET_INDEXED_LOCAL_LONG";
+        case OP_SET_INDEX_LOCAL_LONG: return "OP_SET_INDEX_LOCAL_LONG";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
         case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
@@ -1015,7 +1015,7 @@ disassemble(struct bytecode *code)
                 ip++;
                 switch (instruction) {
                 case OP_LOC_LONG:
-                case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG:
+                case OP_LOC_ALINK_LONG:
                         ip = disassemble_constant(code, ip);
                         break;
                 case OP_SKIP_BACK_LONG:
@@ -1039,7 +1039,7 @@ disassemble(struct bytecode *code)
                         ip = disassemble_argument(code, ip);
                         ip = disassemble_argument(code, ip);
                         break;
-                case OP_SET_INDEXED_LOCAL_LONG:
+                case OP_SET_INDEX_LOCAL_LONG:
                         ip = disassemble_argument_long(code, ip);
                         ip = disassemble_argument(code, ip);
                         ip = disassemble_argument(code, ip);
