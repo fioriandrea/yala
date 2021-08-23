@@ -55,7 +55,6 @@ static struct tree_node *const_expr(struct parser *ps);
 static struct tree_node *integer_const(struct parser *ps);
 static struct tree_node *string_const(struct parser *ps);
 static struct tree_node *vector_const(struct parser *ps);
-static struct tree_node *const_list(struct parser *ps);
 static struct tree_node *boolean_const(struct parser *ps);
 static struct tree_node *grouping_expr(struct parser *ps);
 static struct tree_node *conditional_expr(struct parser *ps);
@@ -63,6 +62,7 @@ struct tree_node *id_expr(struct parser *ps);
 static struct tree_node *dispatch_id_expr(struct parser *ps);
 struct tree_node *indexing_expr(struct parser *ps, struct tree_node *indexed);
 struct tree_node *call_expr(struct parser *ps, struct tree_node *called);
+static struct tree_node *expr_list_until(struct parser *ps, enum token_type rightdelim);
 static struct tree_node *expr_list(struct parser *ps);
 
 struct tree_node *
@@ -469,7 +469,7 @@ unary_expr(struct parser *ps)
         advance(ps);
         struct tree_node *child = term(ps);
         struct tree_node *res = new_tree_node_at_current(ps, type);
-        res->child = child;
+        res->right = child;
         return res;
 }
 
@@ -513,23 +513,10 @@ vector_const(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_VECTOR_CONST);
         advance(ps);
-        res->child = const_list(ps);
+        res->child = expr_list(ps);
         eat_error(ps, TOKEN_RSQUARE);
         if (eat(ps, TOKEN_LSQUARE)) {
                 res = indexing_expr(ps, res);
-        }
-        return res;
-}
-
-static struct tree_node *
-const_list(struct parser *ps)
-{
-        struct tree_node *res = const_expr(ps);
-        struct tree_node **ptr = &res;
-        ptr = &(*ptr)->next;
-        while (eat(ps, TOKEN_COMMA)) {
-                *ptr = const_expr(ps);
-                ptr = &(*ptr)->next;
         }
         return res;
 }
@@ -624,15 +611,24 @@ call_expr(struct parser *ps, struct tree_node *called)
 }
 
 static struct tree_node *
+expr_list_until(struct parser *ps, enum token_type rightdelim)
+{
+        struct tree_node *res = NULL;
+        if (!check(ps, rightdelim)) {
+                res = expr_list(ps);
+        }
+        return res;
+}
+
+static struct tree_node *
 expr_list(struct parser *ps)
 {
-        struct tree_node *res = new_tree_node_at_current(ps, NODE_EXPR_LIST);
-        res->child = expr(ps);
-        struct tree_node **child = &res->child;
-        child = &(*child)->next;
+        struct tree_node *res = expr(ps);
+        struct tree_node **pp = &res;
+        pp = &(*pp)->next;
         while (eat(ps, TOKEN_COMMA)) {
-                *child = expr(ps);
-                child = &(*child)->next;
+                *pp = expr(ps);
+                pp = &(*pp)->next;
         }
         return res;
 }

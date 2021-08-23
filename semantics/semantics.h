@@ -12,16 +12,17 @@
 
 enum opcode {
         OP_LOC_LONG, /* constants */
+        OP_PUSH_BYTE,
 
         OP_ADDI, /* integer arithmetic */
         OP_SUBI,
         OP_MULI,
         OP_DIVI,
 
-        OP_IGRT, /* comparison */
-        OP_IGRTEQ,
-        OP_ILT,
-        OP_ILEQ,
+        OP_GRT, /* comparison */
+        OP_GRTEQ,
+        OP_LT,
+        OP_LEQ,
         OP_EQUA,
 
         OP_NOT, /* boolean logic */
@@ -44,21 +45,15 @@ enum opcode {
         OP_NEWLINE,
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
+        OP_POPA,
         OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG,
 
-        OP_INIT_VEC_DIMS,
         OP_GET_INDEX,
         OP_SET_INDEXED_LOCAL_LONG,
 
         OP_READ,
 
         OP_HALT,
-};
-
-enum read_format {
-        RF_INTEGER,
-        RF_BOOLEAN,
-        RF_STRING,
 };
 
 char *opcodestring(enum opcode code);
@@ -87,37 +82,28 @@ struct value_string {
 };
 
 struct value_vector {
-        struct value *astackent;
-};
-
-struct run_type {
-        enum value_type id;
-        int *dimensions;
-        int rank;
+        union value *astackent;
         int size;
 };
 
-struct value {
-        struct run_type type;
-        union {
-                int integer;
-                int boolean;
-                struct value_string string;
-                struct value_vector vector;
-        } as;
+union value {
+        int integer;
+        int boolean;
+        struct value_string string;
+        struct value_vector vector;
 };
 
 struct run_type run_type_scalar(enum value_type id);
-void value_print(struct value v);
-struct value value_from_c_int(int i);
-struct value value_from_c_bool(int b);
+void value_print(union value v, enum value_type type, enum value_type base);
+union value value_from_c_int(int i);
+union value value_from_c_bool(int b);
 struct value_string copy_string(char *str, int length);
 unsigned long hash_string(char *str, int length);
-struct value value_from_token(struct token token);
-struct value value_from_c_string(char *str);
-int values_equal(struct value val0, struct value val1);
-int types_comparable(struct semantic_type lefttype, struct semantic_type righttype);
-int compare_values(struct value val0, struct value val1);
+union value value_from_token(struct token token);
+union value value_from_c_string(char *str);
+int values_equal(union value val0, union value val1, enum value_type type, enum value_type base);
+int semantic_types_comparable(struct semantic_type lefttype, struct semantic_type righttype);
+int compare_values(union value val0, union value val1, enum value_type type);
 int semantic_type_equal(struct semantic_type type0, struct semantic_type type1);
 struct run_type semantic_type_to_run_type(struct semantic_type st);
 struct semantic_type semantic_type_scalar(enum value_type vt);
@@ -125,8 +111,8 @@ void semantic_type_print(struct semantic_type semantic_type);
 void run_type_print(struct run_type type);
 char * value_type_to_string(enum value_type vt);
 int index_flattened(int *dimensions, int *indices, int length);
-struct value vector_value_get_element_at(struct value vec, int i);
-void vector_value_set_element_at(struct value vec, int i, struct value val);
+union value vector_value_get_element_at(union value vec, int i);
+void vector_value_set_element_at(union value vec, int i, union value val);
 uint8_t left_byte(uint16_t word);
 uint8_t right_byte(uint16_t word);
 uint16_t join_bytes(uint8_t left, uint8_t right);
@@ -154,7 +140,7 @@ struct lineinfo {
 
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
-LIST_DECLARE(valuelist, struct value)
+LIST_DECLARE(valuelist, union value)
 
 struct bytecode {
         struct bytes code;
@@ -165,10 +151,10 @@ struct bytecode {
 void bytecode_init(struct bytecode *code);
 int bytecode_write_byte(struct bytecode *code, uint8_t byte, struct lineinfo linfo);
 int bytecode_write_long(struct bytecode *code, uint16_t l, struct lineinfo linfo);
-int bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo);
+int bytecode_write_constant(struct bytecode *code, union value val, struct lineinfo linfo);
 uint8_t bytecode_byte_at(struct bytecode *code, int i);
 struct lineinfo bytecode_lineinfo_at(struct bytecode *code, int i);
-struct value bytecode_constant_at(struct bytecode *code, uint16_t address);
+union value bytecode_constant_at(struct bytecode *code, uint16_t address);
 void bytecode_free(struct bytecode *code);
 void disassemble(struct bytecode *code);
 

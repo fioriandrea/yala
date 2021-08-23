@@ -92,7 +92,7 @@ grow_array(void *buffer, int oldcap, int newcap, size_t size)
 
 LIST_DEFINE(bytes, uint8_t)
 LIST_DEFINE(linelist, struct lineinfo)
-LIST_DEFINE(valuelist, struct value)
+LIST_DEFINE(valuelist, union value)
 
 void
 bytecode_init(struct bytecode *code)
@@ -117,7 +117,7 @@ bytecode_write_long(struct bytecode *code, uint16_t l, struct lineinfo linfo)
 }
 
 int
-bytecode_write_constant(struct bytecode *code, struct value val, struct lineinfo linfo)
+bytecode_write_constant(struct bytecode *code, union value val, struct lineinfo linfo)
 {
         int addr = valuelist_push(&code->constants, val) - 1;
         return bytecode_write_long(code, addr, linfo);
@@ -135,52 +135,50 @@ bytecode_lineinfo_at(struct bytecode *code, int i)
         return linelist_at(&code->lines, i);
 }
 
-struct value
+union value
 bytecode_constant_at(struct bytecode *code, uint16_t address)
 {
         return valuelist_at(&code->constants, address);
 }
 
 void
-value_print(struct value v)
+value_print(union value v, enum value_type type, enum value_type base)
 {
-        switch (v.type.id) {
+        switch (type) {
         case VAL_INTEGER:
-                printf("%d", v.as.integer);
+                printf("%d", v.integer);
                 return;
         case VAL_BOOLEAN:
-                printf("%s", v.as.boolean ? "true" : "false");
+                printf("%s", v.boolean ? "true" : "false");
                 return;
         case VAL_STRING:
-                printf("%.*s", v.as.string.length, v.as.string.str);
+                printf("%.*s", v.string.length, v.string.str);
                 return;
         case VAL_VECTOR:
                 printf("[");
-                for (int i = 0; i < v.type.size; i++) {
-                        value_print(*(v.as.vector.astackent - v.type.size + i));
-                        printf(i == v.type.size - 1 ? "" : ", ");
+                for (int i = 0; i < v.vector.size; i++) {
+                        value_print(vector_value_get_element_at(v, i), base, base);
+                        printf(i == v.vector.size - 1 ? "" : ", ");
                 }
                 printf("]");
                 return;
         }
-        printf("unreachable value type %d", v.type.id);
+        printf("unreachable value type %d in value_print", type);
 }
 
-struct value
+union value
 value_from_c_int(int i)
 {
-        struct value v;
-        v.type = run_type_scalar(VAL_INTEGER);
-        v.as.integer = i;
+        union value v;
+        v.integer = i;
         return v;
 }
 
-struct value
+union value
 value_from_c_bool(int b)
 {
-        struct value v;
-        v.type = run_type_scalar(VAL_BOOLEAN);
-        v.as.boolean = !!b;
+        union value v;
+        v.boolean = !!b;
         return v;
 }
 
@@ -216,21 +214,19 @@ value_string_from_token(struct token token)
         return copy_string(token.start, token.length);
 }
 
-struct value
+union value
 value_from_token(struct token token)
 {
-        struct value v;
-        v.type = run_type_scalar(VAL_STRING);
-        v.as.string = value_string_from_token(token);
+        union value v;
+        v.string = value_string_from_token(token);
         return v;
 }
 
-struct value
+union value
 value_from_c_string(char *str)
 {
-        struct value v;
-        v.type = run_type_scalar(VAL_STRING);
-        v.as.string = copy_string(str, strlen(str));
+        union value v;
+        v.string = copy_string(str, strlen(str));
         return v;
 }
 
@@ -246,34 +242,23 @@ semantic_type_scalar(enum value_type vt)
         return type;
 }
 
-struct run_type
-run_type_scalar(enum value_type vt)
-{
-        struct run_type type;
-        type.id = vt;
-        type.rank = 0;
-        type.size = 1;
-        type.dimensions = NULL;
-        return type;
-}
-
 int
-values_equal(struct value val0, struct value val1)
+values_equal(union value val0, union value val1, enum value_type type, enum value_type base)
 {
-        switch (val0.type.id) {
+        switch (type) {
         case VAL_INTEGER:
-                return val0.as.integer == val1.as.integer;
+                return val0.integer == val1.integer;
         case VAL_BOOLEAN:
-                return val0.as.boolean == val1.as.boolean;
+                return val0.boolean == val1.boolean;
         case VAL_STRING:
-                if (val0.as.string.hash != val1.as.string.hash)
+                if (val0.string.hash != val1.string.hash)
                         return 0;
-                return val0.as.string.length == val1.as.string.length && memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length) == 0;
+                return val0.string.length == val1.string.length && memcmp(val0.string.str, val1.string.str, val0.string.length) == 0;
         case VAL_VECTOR:
-                for (int i = 0; i < val0.type.size; i++) {
-                        struct value ent0 = val0.as.vector.astackent[-i - 1];
-                        struct value ent1 = val1.as.vector.astackent[-i - 1];
-                        if (!values_equal(ent0, ent1))
+                for (int i = 0; i < val0.vector.size; i++) {
+                        union value ent0 = val0.vector.astackent[i];
+                        union value ent1 = val1.vector.astackent[i];
+                        if (!values_equal(ent0, ent1, base, base))
                                 return 0;
                 }
                 return 1;
@@ -282,7 +267,7 @@ values_equal(struct value val0, struct value val1)
 }
 
 int
-types_comparable(struct semantic_type lefttype, struct semantic_type righttype)
+semantic_types_comparable(struct semantic_type lefttype, struct semantic_type righttype)
 {
         if (lefttype.id != righttype.id)
                 return 0;
@@ -292,15 +277,15 @@ types_comparable(struct semantic_type lefttype, struct semantic_type righttype)
 }
 
 int
-compare_values(struct value val0, struct value val1)
+compare_values(union value val0, union value val1, enum value_type type)
 {
-        switch (val0.type.id) {
+        switch (type) {
                 case VAL_STRING:
-                        return memcmp(val0.as.string.str, val1.as.string.str, val0.as.string.length);
+                        return memcmp(val0.string.str, val1.string.str, val0.string.length);
                 case VAL_INTEGER:
-                        return val0.as.integer - val1.as.integer;
+                        return val0.integer - val1.integer;
                 default:
-                        printf("unreachable code at compare_values (val0 type %d)", val0.type.id);
+                        printf("unreachable code at compare_values (type %d)", type);
                         return 0;
         }
 }
@@ -342,28 +327,6 @@ semantic_type_print(struct semantic_type type)
         }
 }
 
-void
-run_type_print(struct run_type type)
-{
-        printf("%s", value_type_to_string(type.id));
-}
-
-struct run_type
-semantic_type_to_run_type(struct semantic_type st)
-{
-        struct run_type rt;
-        rt.id = st.id;
-        switch (st.id) {
-                case VAL_VECTOR:
-                        rt.rank = st.rank;
-                        rt.size = st.size;
-                        break;
-                default:
-                        break;
-        }
-        return rt;
-}
-
 int
 index_flattened(int *dimensions, int *indices, int length)
 {
@@ -378,16 +341,16 @@ index_flattened(int *dimensions, int *indices, int length)
         return res;
 }
 
-struct value
-vector_value_get_element_at(struct value vec, int i)
+union value
+vector_value_get_element_at(union value vec, int i)
 {
-        return *(vec.as.vector.astackent - vec.type.size + i);
+        return *(vec.vector.astackent + i);
 }
 
 void
-vector_value_set_element_at(struct value vec, int i, struct value val)
+vector_value_set_element_at(union value vec, int i, union value val)
 {
-        *(vec.as.vector.astackent - vec.type.size + i) = val;
+        *(vec.vector.astackent + i) = val;
 }
 
 uint8_t
