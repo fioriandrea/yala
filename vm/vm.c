@@ -119,7 +119,7 @@ dispatch_op_read(struct vm *vm, enum value_type vt, char *buffer, int cap)
 }
 
 static int *
-read_from_stack_to_int_buffer(struct vm *vm, int buffer[], int len)
+read_from_stack_to_int_buffer(struct vm *vm, int *buffer, int len)
 {
         int *bufferp = buffer + len - 1;
         for (int i = 0; i < len; i++) {
@@ -130,21 +130,28 @@ read_from_stack_to_int_buffer(struct vm *vm, int buffer[], int len)
 }
 
 static int
-is_out_of_bounds(struct vm *vm, int *indicesbuff, int *vecdims, int len)
+is_out_of_bounds(struct vm *vm, int *indicesbuff, int *dimensionsbuff, int len)
 {
         for (int i = 0; i < len; i++) {
-                if (indicesbuff[i] >= vecdims[i] || indicesbuff[i] < 0) {
-                        runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", vecdims[i] - 1);
+                if (indicesbuff[i] >= dimensionsbuff[i] || indicesbuff[i] < 0) {
+                        runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", dimensionsbuff[i] - 1);
                         return 1;
                 }
         }
         return 0;
 }
 
+static void
+load_indexing_prelude(struct vm *vm, int *indicesbuff, int nindices, int *dimensionsbuff, int rank)
+{
+                read_from_stack_to_int_buffer(vm, dimensionsbuff, rank);
+                read_from_stack_to_int_buffer(vm, indicesbuff, nindices);
+}
+
 int
 vm_run(struct vm *vm)
 {
-        char buffer[OP_READ_BUF_CAP];
+        char readbuff[OP_READ_BUF_CAP];
         union value val0;
         union value val1;
         enum opcode current;
@@ -299,7 +306,7 @@ vm_run(struct vm *vm)
         }
         case OP_READ:
                 arg0 = advance_ip(vm);
-                dispatch_op_read(vm, arg0, buffer, OP_READ_BUF_CAP);
+                dispatch_op_read(vm, arg0, readbuff, OP_READ_BUF_CAP);
                 break;
         case OP_GET_LOCAL_LONG:
                 arg0 = advance_ip(vm);
@@ -319,10 +326,10 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 arg0 = advance_ip(vm); /* how many indices */
                 arg1 = advance_ip(vm); /* rank */
-                val0 = vm->stack[arglong0];
 
-                read_from_stack_to_int_buffer(vm, dimensionsbuff, arg1);
-                read_from_stack_to_int_buffer(vm, indicesbuff, arg0);
+                load_indexing_prelude(vm, indicesbuff, arg0, dimensionsbuff, arg1);
+
+                val0 = vm->stack[arglong0];
 
                 if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
                         return 1;
@@ -344,10 +351,10 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
 
-                read_from_stack_to_int_buffer(vm, dimensionsbuff, arg1);
-                read_from_stack_to_int_buffer(vm, indicesbuff, arg0);
+                load_indexing_prelude(vm, indicesbuff, arg0, dimensionsbuff, arg1);
 
                 val0 = popv(vm);
+
                 if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
                         return 1;
 
