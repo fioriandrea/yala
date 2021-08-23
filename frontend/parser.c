@@ -469,7 +469,7 @@ unary_expr(struct parser *ps)
         advance(ps);
         struct tree_node *child = term(ps);
         struct tree_node *res = new_tree_node_at_current(ps, type);
-        res->child = child;
+        res->right = child;
         return res;
 }
 

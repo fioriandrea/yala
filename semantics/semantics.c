@@ -180,7 +180,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 patch_skip_long(env, root, codelen);
                 return booltype;
         case NODE_NOT_EXPR:
-                lefttype = emit_expression(env, root->left);
+                lefttype = emit_expression(env, root->right);
                 if (lefttype.id != VAL_BOOLEAN) {
                         semantic_error(env, root, "operand must be a boolean");
                 }
@@ -220,7 +220,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 return inttype;
         case NODE_NEG_EXPR:
                 emit_byte(env, root, OP_ZERO);
-                lefttype = emit_expression(env, root->left);
+                lefttype = emit_expression(env, root->right);
                 if (lefttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operand must be an integer");
                 }
