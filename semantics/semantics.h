@@ -19,10 +19,10 @@ enum opcode {
         OP_MULI,
         OP_DIVI,
 
-        OP_IGRT, /* comparison */
-        OP_IGRTEQ,
-        OP_ILT,
-        OP_ILEQ,
+        OP_GRT, /* comparison */
+        OP_GRTEQ,
+        OP_LT,
+        OP_LEQ,
         OP_EQUA,
 
         OP_NOT, /* boolean logic */

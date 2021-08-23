@@ -256,8 +256,8 @@ values_equal(union value val0, union value val1, enum value_type type, enum valu
                 return val0.string.length == val1.string.length && memcmp(val0.string.str, val1.string.str, val0.string.length) == 0;
         case VAL_VECTOR:
                 for (int i = 0; i < val0.vector.size; i++) {
-                        union value ent0 = val0.vector.astackent[-i - 1];
-                        union value ent1 = val1.vector.astackent[-i - 1];
+                        union value ent0 = val0.vector.astackent[i];
+                        union value ent1 = val1.vector.astackent[i];
                         if (!values_equal(ent0, ent1, base, base))
                                 return 0;
                 }

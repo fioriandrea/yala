@@ -198,25 +198,25 @@ vm_run(struct vm *vm)
                 }
                 pushv(vm, value_from_c_int(val0.integer / val1.integer));
                 break;
-        case OP_IGRT:
+        case OP_GRT:
                 arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
                 pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) > 0));
                 break;
-        case OP_IGRTEQ:
+        case OP_GRTEQ:
                 arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
                 pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) >= 0));
                 break;
-        case OP_ILT:
+        case OP_LT:
                 arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);
                 pushv(vm, value_from_c_bool(compare_values(val0, val1, arg0) < 0));
                 break;
-        case OP_ILEQ:
+        case OP_LEQ:
                 arg0 = advance_ip(vm);
                 val1 = popv(vm);
                 val0 = popv(vm);

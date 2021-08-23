@@ -81,7 +81,7 @@ emit_statement(struct environment *env, struct tree_node *root)
         case NODE_WRITE_STAT:
         case NODE_WRITELN_STAT:
                 count = 0;
-                node = root->child->child;
+                node = root->child;
                 while (node != NULL) {
                         if (count == MAX_ARITY) {
                                 semantic_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
@@ -99,7 +99,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                 break;
         case NODE_READ_STAT:
                 count = 0;
-                node = root->child->child;
+                node = root->child;
                 while (node != NULL) {
                         if (count == MAX_ARITY) {
                                 semantic_error(env, node, "maximum arity (%d) exceeded", MAX_ARITY);
@@ -249,7 +249,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 if (!semantic_types_comparable(lefttype, righttype)) {
                         semantic_error(env, root, "operands must be integers or strings");
                 }
-                emit_two_bytes(env, root, OP_IGRTEQ, lefttype.id);
+                emit_two_bytes(env, root, OP_GRTEQ, lefttype.id);
                 return booltype;
         case NODE_GREATER_EXPR:
                 lefttype = emit_expression(env, root->left);
@@ -257,7 +257,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 if (!semantic_types_comparable(lefttype, righttype)) {
                         semantic_error(env, root, "operands must be integers or strings");
                 }
-                emit_two_bytes(env, root, OP_IGRT, lefttype.id);
+                emit_two_bytes(env, root, OP_GRT, lefttype.id);
                 return booltype;
         case NODE_LESSEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
@@ -265,7 +265,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 if (!semantic_types_comparable(lefttype, righttype)) {
                         semantic_error(env, root, "operands must be integers or strings");
                 }
-                emit_two_bytes(env, root, OP_ILEQ, lefttype.id);
+                emit_two_bytes(env, root, OP_LEQ, lefttype.id);
                 return booltype;
         case NODE_LESS_EXPR:
                 lefttype = emit_expression(env, root->left);
@@ -273,7 +273,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 if (!semantic_types_comparable(lefttype, righttype)) {
                         semantic_error(env, root, "operands must be integers or strings");
                 }
-                emit_two_bytes(env, root, OP_ILT, lefttype.id);
+                emit_two_bytes(env, root, OP_LT, lefttype.id);
                 return booltype;
         case NODE_COND_EXPR:
                 return emit_cond_expression(env, root);
@@ -772,7 +772,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         startlen = bytes_len(&code->code);
         emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
         emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(forcond_index), right_byte(forcond_index));
-        emit_two_bytes(env, condition, OP_ILEQ, VAL_INTEGER);
+        emit_two_bytes(env, condition, OP_LEQ, VAL_INTEGER);
         emit_three_bytes(env, condition, OP_SKIPF_LONG, 0, 0);
         codelen = bytes_len(&code->code);
         emit_byte(env, condition, OP_POPV);
@@ -944,10 +944,10 @@ opcodestring(enum opcode code)
         case OP_GET_INDEX: return "OP_GET_INDEX";
         case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
         case OP_HALT: return "OP_HALT";
-        case OP_IGRTEQ: return "OP_IGRTEQ";
-        case OP_IGRT: return "OP_IGRT";
-        case OP_ILEQ: return "OP_ILEQ";
-        case OP_ILT: return "OP_ILT";
+        case OP_GRTEQ: return "OP_GRTEQ";
+        case OP_GRT: return "OP_GRT";
+        case OP_LEQ: return "OP_LEQ";
+        case OP_LT: return "OP_LT";
         case OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG: return "OP_LOAD_AND_LINK_VEC_TO_ASTACK_LONG";
         case OP_LOC_LONG: return "OP_LOC_LONG";
         case OP_MULI: return "OP_MULI";
@@ -1025,10 +1025,10 @@ disassemble(struct bytecode *code)
                 case OP_SET_LOCAL_LONG:
                         ip = disassemble_argument_long(code, ip);
                         break;
-                case OP_ILT:
-                case OP_ILEQ:
-                case OP_IGRT:
-                case OP_IGRTEQ:
+                case OP_LT:
+                case OP_LEQ:
+                case OP_GRT:
+                case OP_GRTEQ:
                 case OP_PUSH_BYTE:
                 case OP_WRITE:
                         ip = disassemble_argument(code, ip);
