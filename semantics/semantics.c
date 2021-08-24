@@ -17,6 +17,10 @@ static void emit_while_statement(struct environment *env, struct tree_node *root
 static void emit_if_statement(struct environment *env, struct tree_node *root);
 static int emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms);
 static void emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type);
+static void push_loop(struct environment *env);
+static void pop_loop(struct environment *env);
+static void emit_break(struct environment *env, struct tree_node *node);
+static void patch_breaks(struct environment *env, struct tree_node *root);
 static void emit_pop_scope(struct environment *env, struct tree_node *node);
 static void emit_push_scope(struct environment *env, struct tree_node *node);
 static int emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen);
@@ -141,6 +145,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                 break;
         case NODE_EXIT_STAT:
                 emit_byte(env, root, OP_HALT);
+                break;
+        case NODE_BREAK_STAT:
+                emit_break(env, root);
                 break;
         default:
                 semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
@@ -477,6 +484,8 @@ environment_init(struct environment *env, struct bytecode *code)
         env->error = 0;
         env->depth = 0;
         env->panic = 0;
+        env->breakcount = 0;
+        env->loopdepth = 0;
 }
 
 static int
@@ -539,6 +548,46 @@ emit_read_type(struct environment *env, struct tree_node *node, struct semantic_
 {
         emit_byte(env, node, OP_READ);
         emit_byte(env, node, lhs_type.id);
+}
+
+static void
+push_loop(struct environment *env)
+{
+        env->loopdepth++;
+}
+
+static void
+pop_loop(struct environment *env)
+{
+        while (env->breakcount > 0 && env->break_likes[env->breakcount - 1].loopdepth == env->loopdepth) {
+                env->breakcount--;
+        }
+        env->loopdepth--;
+}
+
+static void
+emit_break(struct environment *env, struct tree_node *node)
+{
+        if (env->breakcount >= MAX_BREAK_LIKES) {
+                semantic_error(env, node, "maximum number of breaks (%d) in a function exceeded", MAX_BREAK_LIKES);
+                return;
+        }
+        if (env->loopdepth == 0) {
+                semantic_error(env, node, "cannot use break outside a loop");
+                return;
+        }
+        struct break_like *br = &env->break_likes[env->breakcount];
+        br->codelen = emit_unpatched_skip_long(env, node, OP_SKIP_LONG);
+        br->loopdepth = env->loopdepth;
+        env->breakcount++;
+}
+
+static void
+patch_breaks(struct environment *env, struct tree_node *root)
+{
+        for (int i = env->breakcount - 1; i >= 0 && env->break_likes[i].loopdepth == env->loopdepth; i--) {
+                patch_skip_long(env, root, env->break_likes[i].codelen);
+        }
 }
 
 static void
@@ -605,6 +654,8 @@ emit_if_statement(struct environment *env, struct tree_node *root)
 static void
 emit_while_statement(struct environment *env, struct tree_node *root)
 {
+        push_loop(env);
+
         int codelen, startlen;
         struct semantic_type type1;
         struct bytecode *code = env->code;
@@ -620,11 +671,17 @@ emit_while_statement(struct environment *env, struct tree_node *root)
         emit_skip_back_long(env, root->right, startlen);
         patch_skip_long(env, root, codelen);
         emit_byte(env, root->left, OP_POPV);
+
+        patch_breaks(env, root);
+
+        pop_loop(env);
 }
 
 static void
 emit_repeat_statement(struct environment *env, struct tree_node *root)
 {
+        push_loop(env);
+
         int startlen;
         struct semantic_type type1;
         struct bytecode *code = env->code;
@@ -640,6 +697,10 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
 
         emit_three_bytes(env, root->right, OP_SKIPF_LONG, 0, 3);
         emit_skip_back_long(env, root->right, startlen);
+
+        patch_breaks(env, root);
+
+        pop_loop(env);
 }
 
 static int
@@ -739,6 +800,8 @@ emit_assign_statement(struct environment *env, struct tree_node *root)
 static void
 emit_for_statement(struct environment *env, struct tree_node *root)
 {
+        push_loop(env);
+
         struct tree_node *assign = root->left;
         struct tree_node *condition = assign->next;
         struct tree_node *statlist = root->right;
@@ -791,7 +854,11 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         patch_skip_long(env, root, codelen);
         emit_byte(env, condition, OP_POPV);
 
+        patch_breaks(env, root);
+
         emit_pop_scope(env, root);
+
+        pop_loop(env);
 }
 
 static struct semantic_type

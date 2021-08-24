@@ -141,6 +141,9 @@ stat(struct parser *ps)
         case TOKEN_EXIT:
                 eat_error(ps, TOKEN_EXIT);
                 return new_tree_node_at_previous(ps, NODE_EXIT_STAT);
+        case TOKEN_BREAK:
+                eat_error(ps, TOKEN_BREAK);
+                return new_tree_node_at_previous(ps, NODE_BREAK_STAT);
         default:
                 return expr_stat(ps);
         }
