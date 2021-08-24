@@ -29,6 +29,7 @@ static void emit_two_bytes(struct environment *env, struct tree_node *root, uint
 static void emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2);
 static struct semantic_type compute_indexed_semantic_type(int index_count, struct semantic_type indexed_type);
 static struct semantic_type emit_indexing_prelude(struct environment *env, struct semantic_type indexed_type, struct tree_node *indexing_node);
+static int emit_unpatched_skip_long(struct environment *env, struct tree_node *root, enum opcode op);
 static int patch_skip_long(struct environment *env, struct tree_node *root, int codelen);
 static void environment_init(struct environment *env, struct bytecode *code);
 static int environment_local_get(struct environment *env, struct token name);
@@ -371,6 +372,13 @@ emit_load_constant(struct environment *env, struct tree_node *root, union value 
 }
 
 static int
+emit_unpatched_skip_long(struct environment *env, struct tree_node *root, enum opcode op)
+{
+    emit_three_bytes(env, root, op, 0, 0);
+    return bytes_len(&env->code->code);
+}
+
+static int
 patch_skip_long(struct environment *env, struct tree_node *root, int codelen)
 {
         if (env->error)
@@ -567,7 +575,6 @@ emit_if_statement(struct environment *env, struct tree_node *root)
         toendp = toendlens;
         struct tree_node *child;
         struct semantic_type type1;
-        struct bytecode *code = env->code;
         child = root->child;
         while (child != NULL && child->type == NODE_CONDITION_AND_STATEMENT) {
                 type1 = emit_expression(env, child->left);
@@ -575,16 +582,14 @@ emit_if_statement(struct environment *env, struct tree_node *root)
                         semantic_error(env, child->left, "if condition must be boolean");
                         return;
                 }
-                emit_three_bytes(env, child->left, OP_SKIPF_LONG, 0, 0);
-                codelen = bytes_len(&code->code);
+                codelen = emit_unpatched_skip_long(env, child->left, OP_SKIPF_LONG);
                 emit_byte(env, child->left, OP_POPV);
                 emit_statement(env, child->right);
-                emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
                 if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
                         semantic_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
                         return;
                 }
-                *toendp++ = bytes_len(&code->code);
+                *toendp++ = emit_unpatched_skip_long(env, child, OP_SKIP_LONG);
                 patch_skip_long(env, child, codelen);
                 emit_byte(env, child, OP_POPV);
                 child = child->next;
@@ -609,8 +614,7 @@ emit_while_statement(struct environment *env, struct tree_node *root)
                 semantic_error(env, root->left, "while condition must be boolean");
                 return;
         }
-        emit_three_bytes(env, root->left, OP_SKIPF_LONG, 0, 0);
-        codelen = bytes_len(&code->code);
+        codelen = emit_unpatched_skip_long(env, root->left, OP_SKIPF_LONG);
         emit_byte(env, root->left, OP_POPV);
         emit_statement(env, root->right);
         emit_skip_back_long(env, root->right, startlen);
@@ -776,8 +780,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
         emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(forcond_index), right_byte(forcond_index));
         emit_two_bytes(env, condition, OP_LEQ, VAL_INTEGER);
-        emit_three_bytes(env, condition, OP_SKIPF_LONG, 0, 0);
-        codelen = bytes_len(&code->code);
+        codelen = emit_unpatched_skip_long(env, condition, OP_SKIPF_LONG);
         emit_byte(env, condition, OP_POPV);
         emit_statement(env, statlist);
         emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(incindex), right_byte(incindex));
@@ -799,7 +802,6 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
         toendp = toendlens;
         struct tree_node *child;
         struct semantic_type type0, type1;
-        struct bytecode *code = env->code;
         child = root->child;
         while (child != NULL && child->type == NODE_CONDITION_AND_EXPRESSION) {
                 type1 = emit_expression(env, child->left);
@@ -807,8 +809,7 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
                         semantic_error(env, child->left, "if condition must be boolean");
                         return type0;
                 }
-                emit_three_bytes(env, child->left, OP_SKIPF_LONG, 0, 0);
-                codelen = bytes_len(&code->code);
+                codelen = emit_unpatched_skip_long(env, child->left, OP_SKIPF_LONG);
                 emit_byte(env, child->left, OP_POPV);
                 type1 = emit_expression(env, child->right);
                 if (child == root->child)
@@ -817,12 +818,11 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
                         semantic_error(env, child, "conditional expression types must be the same");
                         return type0;
                 }
-                emit_three_bytes(env, child, OP_SKIP_LONG, 0, 0);
                 if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
                         semantic_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
                         return type0;
                 }
-                *toendp++ = bytes_len(&code->code);
+                *toendp++ = emit_unpatched_skip_long(env, child, OP_SKIP_LONG);
                 patch_skip_long(env, child, codelen);
                 emit_byte(env, child, OP_POPV);
                 child = child->next;
