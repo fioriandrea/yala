@@ -486,7 +486,7 @@ environment_init(struct environment *env, struct bytecode *code)
         env->error = 0;
         env->depth = 0;
         env->panic = 0;
-        env->breakcount = 0;
+        break_likes_init(&env->break_likes);
         env->loopdepth = 0;
 }
 
@@ -494,6 +494,7 @@ static void
 environment_free(struct environment *env)
 {
         locals_free(&env->locals);
+        break_likes_free(&env->break_likes);
 }
 
 static int
@@ -567,8 +568,8 @@ push_loop(struct environment *env)
 static void
 pop_loop(struct environment *env)
 {
-        while (env->breakcount > 0 && env->break_likes[env->breakcount - 1].loopdepth == env->loopdepth) {
-                env->breakcount--;
+        while (break_likes_len(&env->break_likes) > 0 && break_likes_at(&env->break_likes, break_likes_len(&env->break_likes) - 1).loopdepth == env->loopdepth) {
+                break_likes_pop(&env->break_likes);
         }
         env->loopdepth--;
 }
@@ -576,25 +577,21 @@ pop_loop(struct environment *env)
 static void
 emit_break(struct environment *env, struct tree_node *node)
 {
-        if (env->breakcount >= MAX_BREAK_LIKES) {
-                semantic_error(env, node, "maximum number of breaks (%d) in a function exceeded", MAX_BREAK_LIKES);
-                return;
-        }
         if (env->loopdepth == 0) {
                 semantic_error(env, node, "cannot use break outside a loop");
                 return;
         }
-        struct break_like *br = &env->break_likes[env->breakcount];
-        br->codelen = emit_unpatched_skip_long(env, node, OP_SKIP_LONG);
-        br->loopdepth = env->loopdepth;
-        env->breakcount++;
+        struct break_like br;
+        br.codelen = emit_unpatched_skip_long(env, node, OP_SKIP_LONG);
+        br.loopdepth = env->loopdepth;
+        break_likes_push(&env->break_likes, br);
 }
 
 static void
 patch_breaks(struct environment *env, struct tree_node *root)
 {
-        for (int i = env->breakcount - 1; i >= 0 && env->break_likes[i].loopdepth == env->loopdepth; i--) {
-                patch_skip_long(env, root, env->break_likes[i].codelen);
+        for (int i = break_likes_len(&env->break_likes) - 1; i >= 0 && break_likes_at(&env->break_likes, i).loopdepth == env->loopdepth; i--) {
+                patch_skip_long(env, root, break_likes_at(&env->break_likes, i).codelen);
         }
 }
 

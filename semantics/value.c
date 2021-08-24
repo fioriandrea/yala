@@ -80,6 +80,7 @@ LIST_DEFINE(bytes, uint8_t)
 LIST_DEFINE(linelist, struct lineinfo)
 LIST_DEFINE(valuelist, union value)
 LIST_DEFINE(locals, struct local)
+LIST_DEFINE(break_likes, struct break_like)
 
 void
 bytecode_init(struct bytecode *code)
