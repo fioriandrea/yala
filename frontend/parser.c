@@ -138,6 +138,9 @@ stat(struct parser *ps)
                 return writeln_stat(ps);
         case TOKEN_READ:
                 return read_stat(ps);
+        case TOKEN_EXIT:
+                eat_error(ps, TOKEN_EXIT);
+                return new_tree_node_at_previous(ps, NODE_EXIT_STAT);
         default:
                 return expr_stat(ps);
         }

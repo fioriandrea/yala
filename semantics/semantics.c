@@ -138,6 +138,9 @@ emit_statement(struct environment *env, struct tree_node *root)
         case NODE_EXPR_STAT:
                 emit_popv(env, root, emit_expression(env, root->child));
                 break;
+        case NODE_EXIT_STAT:
+                emit_byte(env, root, OP_HALT);
+                break;
         default:
                 semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
                 break;
