@@ -79,6 +79,7 @@ grow_array(void *buffer, int oldcap, int newcap, size_t size)
 LIST_DEFINE(bytes, uint8_t)
 LIST_DEFINE(linelist, struct lineinfo)
 LIST_DEFINE(valuelist, union value)
+LIST_DEFINE(locals, struct local)
 
 void
 bytecode_init(struct bytecode *code)

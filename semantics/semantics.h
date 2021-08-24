@@ -160,7 +160,7 @@ void disassemble(struct bytecode *code);
 
 struct bytecode *generate_bytecode(struct tree_node *parsetree);
 
-#define MAX_LOCALS 200
+#define MAX_LOCALS UINT16_MAX
 #define MAX_BREAK_LIKES 200
 
 #define LOCAL_PERM_R (1 << 0)
@@ -174,6 +174,8 @@ struct local {
         uint8_t perms;
 };
 
+LIST_DECLARE(locals, struct local)
+
 struct break_like {
     int codelen;
     int loopdepth;
@@ -181,9 +183,8 @@ struct break_like {
 
 struct environment {
         struct bytecode *code;
-        struct local locals[MAX_LOCALS];
+        struct locals locals;
         int depth;
-        int count;
         int error;
         int panic;
 

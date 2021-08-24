@@ -36,6 +36,7 @@ static struct semantic_type emit_indexing_prelude(struct environment *env, struc
 static int emit_unpatched_skip_long(struct environment *env, struct tree_node *root, enum opcode op);
 static int patch_skip_long(struct environment *env, struct tree_node *root, int codelen);
 static void environment_init(struct environment *env, struct bytecode *code);
+static void environment_free(struct environment *env);
 static int environment_local_get(struct environment *env, struct token name);
 static void init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
 static void emit_read_type(struct environment *env, struct tree_node *node, struct semantic_type lhs_type);
@@ -53,6 +54,7 @@ generate_bytecode(struct tree_node *parsetree)
         struct environment env;
         environment_init(&env, code);
         emit_statement(&env, parsetree);
+        environment_free(&env);
         if (env.error) {
                 /* OK leak, the OS will take care of this */
                 return NULL;
@@ -314,7 +316,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                         break;
                 }
                 emit_three_bytes(env, root, OP_GET_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
-                return env->locals[localindex].type;
+                return locals_at(&env->locals, localindex).type;
         case NODE_INDEXING:
                 return emit_indexing_expression(env, root);
         default:
@@ -480,7 +482,7 @@ static void
 environment_init(struct environment *env, struct bytecode *code)
 {
         env->code = code;
-        env->count = 0;
+        locals_init(&env->locals);
         env->error = 0;
         env->depth = 0;
         env->panic = 0;
@@ -488,12 +490,18 @@ environment_init(struct environment *env, struct bytecode *code)
         env->loopdepth = 0;
 }
 
+static void
+environment_free(struct environment *env)
+{
+        locals_free(&env->locals);
+}
+
 static int
 environment_local_get(struct environment *env, struct token name)
 {
         int i;
-        for (i = env->count - 1; i >= 0; i--) {
-                if (token_equal(env->locals[i].name, name)) {
+        for (i = locals_len(&env->locals) - 1; i >= 0; i--) {
+                if (token_equal(locals_at(&env->locals, i).name, name)) {
                         break;
                 }
         }
@@ -509,9 +517,9 @@ emit_push_scope(struct environment *env, struct tree_node *node)
 static void
 emit_pop_scope(struct environment *env, struct tree_node *node)
 {
-        while (env->count > 0 && env->locals[env->count - 1].depth == env->depth) {
-                env->count--;
-                emit_popv(env, node, env->locals[env->count].type);
+        while (locals_len(&env->locals) > 0 && locals_at(&env->locals, locals_len(&env->locals) - 1).depth == env->depth) {
+                emit_popv(env, node, locals_at(&env->locals, locals_len(&env->locals) - 1).type);
+                locals_pop(&env->locals);
         }
         env->depth--;
 }
@@ -602,18 +610,19 @@ init_local(struct local *loc, struct token name, struct semantic_type type, int 
 static int
 emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms)
 {
-        if (env->count == MAX_LOCALS) {
+        if (locals_len(&env->locals) == MAX_LOCALS) {
                 semantic_error(env, current, "maximum number of local variables exceeded");
                 return 0;
         }
         int localindex;
-        if ((localindex = environment_local_get(env, current->value)) >= 0 && env->locals[localindex].depth == env->depth) {
+        if ((localindex = environment_local_get(env, current->value)) >= 0 && locals_at(&env->locals, localindex).depth == env->depth) {
                 semantic_error(env, current, "variable already declared");
                 return 0;
         }
         emit_variable_default(env, current, type);
-        init_local(&env->locals[env->count], current->value, type, env->depth, perms);
-        return env->count++;
+        struct local topush;
+        init_local(&topush, current->value, type, env->depth, perms);
+        return locals_push(&env->locals, topush) - 1;
 }
 
 static void
@@ -710,7 +719,7 @@ environment_local_get_check_write(struct environment *env, struct token name, st
         if (localindex < 0) {
                 semantic_error(env, root->left, "undefined variable");
         }
-        struct local loc = env->locals[localindex];
+        struct local loc = locals_at(&env->locals, localindex);
         if ((loc.perms & LOCAL_PERM_W) == 0) {
                 semantic_error(env, root->left, "cannot assign read-only variable");
         }
@@ -720,7 +729,7 @@ environment_local_get_check_write(struct environment *env, struct token name, st
 static struct semantic_type
 emit_op_set_local_lhs_type(struct environment *env, int localindex, struct tree_node *lhs)
 {
-        struct local local = env->locals[localindex];
+        struct local local = locals_at(&env->locals, localindex);
         struct semantic_type toret;
         switch (local.type.id) {
         case VAL_VECTOR:
@@ -761,7 +770,7 @@ emit_op_set_local(struct environment *env, struct tree_node *node, int localinde
 {
         if (localindex < 0)
                 return;
-        struct local loc = env->locals[localindex];
+        struct local loc = locals_at(&env->locals, localindex);
         switch (loc.type.id) {
                 case VAL_VECTOR:
                         emit_three_bytes(env, node, OP_SET_INDEX_LOCAL_LONG, left_byte(localindex), right_byte(localindex));
@@ -826,7 +835,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         struct semantic_type inttype = semantic_type_scalar(VAL_INTEGER);
         int incindex = emit_declare_local(env, assign->left, inttype, LOCAL_PERM_RW);
         emit_assign_statement(env, assign);
-        env->locals[env->count - 1].perms = LOCAL_PERM_R;
+        env->locals.buffer[locals_len(&env->locals) - 1].perms = LOCAL_PERM_R;
 
         int forcond_index = emit_declare_local(env, &forcond_node, inttype, LOCAL_PERM_R);
         struct semantic_type type1;
