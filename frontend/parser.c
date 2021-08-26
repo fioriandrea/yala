@@ -69,6 +69,7 @@ static struct tree_node *var_decl(struct parser *ps);
 static struct tree_node *var_decl_list(struct parser *ps);
 static struct tree_node *var_decl_list_until(struct parser *ps, enum token_type rightdelim);
 static int eat_module_name_error(struct parser *ps, struct token module_name);
+static struct tree_node *wrap_expr_in_statement(struct tree_node *exprnode);
 
 struct tree_node *
 parse(char *program, int programlen)
@@ -266,7 +267,8 @@ function_decl_stat(struct parser *ps)
         res->right = function_types;
         eat_error(ps, TOKEN_BEGIN);
         eat_module_name_error(ps, res->left->value);
-        res->child = expr(ps);
+        res->child = new_tree_node_at_current(ps, NODE_STAT_LIST);
+        res->child->child = wrap_expr_in_statement(expr(ps));
         eat_error(ps, TOKEN_END);
         eat_module_name_error(ps, res->left->value);
         return res;
