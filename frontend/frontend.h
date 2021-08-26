@@ -136,6 +136,7 @@ enum node_type {
         NODE_WHILE_STAT,
         NODE_WRITELN_STAT,
         NODE_WRITE_STAT,
+        NODE_FUNCTION_TYPES,
 };
 
 struct tree_node {

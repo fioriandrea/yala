@@ -32,6 +32,7 @@ static struct tree_node *stat(struct parser *ps);
 static struct tree_node *write_stat(struct parser *ps);
 static struct tree_node *writeln_stat(struct parser *ps);
 static struct tree_node *read_stat(struct parser *ps);
+static struct tree_node *function_decl_stat(struct parser *ps);
 static int is_node_lhs(struct tree_node *lhs);
 static struct tree_node *if_stat(struct parser *ps);
 static struct tree_node *while_stat(struct parser *ps);
@@ -64,6 +65,10 @@ struct tree_node *indexing_expr(struct parser *ps, struct tree_node *indexed);
 struct tree_node *call_expr(struct parser *ps, struct tree_node *called);
 static struct tree_node *expr_list_until(struct parser *ps, enum token_type rightdelim);
 static struct tree_node *expr_list(struct parser *ps);
+static struct tree_node *var_decl(struct parser *ps);
+static struct tree_node *var_decl_list(struct parser *ps);
+static struct tree_node *var_decl_list_until(struct parser *ps, enum token_type rightdelim);
+static int eat_module_name_error(struct parser *ps, struct token module_name);
 
 struct tree_node *
 parse(char *program, int programlen)
@@ -138,6 +143,8 @@ stat(struct parser *ps)
                 return writeln_stat(ps);
         case TOKEN_READ:
                 return read_stat(ps);
+        case TOKEN_FUNCTION:
+                return function_decl_stat(ps);
         case TOKEN_EXIT:
                 eat_error(ps, TOKEN_EXIT);
                 return new_tree_node_at_previous(ps, NODE_EXIT_STAT);
@@ -241,6 +248,70 @@ read_stat(struct parser *ps)
         }
         eat_error(ps, TOKEN_RPAREN);
         return res;
+}
+
+static struct tree_node *
+function_decl_stat(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_FUNCTION_DECL);
+        eat(ps, TOKEN_FUNCTION);
+        res->left = id_expr(ps);
+        eat_error(ps, TOKEN_LPAREN);
+        res->right = var_decl_list_until(ps, TOKEN_RPAREN);
+        eat_error(ps, TOKEN_RPAREN);
+        eat_error(ps, TOKEN_COLON);
+        struct tree_node *function_types = new_tree_node_at_current(ps, NODE_FUNCTION_TYPES);
+        function_types->left = res->right;
+        function_types->right = type_label(ps);
+        res->right = function_types;
+        eat_error(ps, TOKEN_BEGIN);
+        eat_module_name_error(ps, res->left->value);
+        res->child = expr(ps);
+        eat_error(ps, TOKEN_END);
+        eat_module_name_error(ps, res->left->value);
+        return res;
+}
+
+static int
+eat_module_name_error(struct parser *ps, struct token module_name)
+{
+        if (ps->current.type != TOKEN_ID || !token_equal(ps->current, module_name)) {
+                parse_error(ps, ps->current, "module name mismatch (expected \"%.*s\")", module_name.length, module_name.start);
+                return 0;
+        }
+        advance(ps);
+        return 1;
+}
+
+
+static struct tree_node *
+var_decl(struct parser *ps)
+{
+        struct tree_node *res = id_expr(ps);
+        return var_decl_stat_trial(ps, res);
+}
+
+static struct tree_node *
+var_decl_list(struct parser *ps)
+{
+        struct tree_node *res = NULL;
+        struct tree_node **pp = &res;
+
+        *pp = var_decl(ps);
+        pp = &(*pp)->next;
+        while (eat(ps, TOKEN_COMMA)) {
+                *pp = var_decl(ps);
+                pp = &(*pp)->next;
+        }
+        return res;
+}
+
+static struct tree_node *
+var_decl_list_until(struct parser *ps, enum token_type rightdelim)
+{
+        if (check(ps, rightdelim))
+                return NULL;
+        return var_decl_list(ps);
 }
 
 static int
@@ -349,7 +420,7 @@ id_list_empty(struct parser *ps)
 
 static struct tree_node *
 type_label(struct parser *ps)
-{ 
+{
         advance(ps);
         switch (ps->previous.type) {
         case TOKEN_STRING:
@@ -567,7 +638,7 @@ conditional_expr(struct parser *ps)
 struct tree_node *
 id_expr(struct parser *ps)
 {
-        advance(ps);
+        eat_error(ps, TOKEN_ID);
         return new_tree_node_at_previous(ps, NODE_ID);
 }
 
@@ -589,7 +660,7 @@ dispatch_id_expr(struct parser *ps)
                 default:
                         break;
                 }
-        } ;
+        }
         return res;
 }
 
@@ -804,14 +875,14 @@ char *
 node_type_string(enum node_type type)
 {
         switch (type) {
-        case NODE_CONDITION_AND_STATEMENT: return "NODE_CONDITION_AND_STATEMENT";
-        case NODE_CONDITION_AND_EXPRESSION: return "NODE_CONDITION_AND_STATEMENT";
         case NODE_AND_EXPR: return "NODE_AND_EXPR";
         case NODE_ASSIGN_STAT: return "NODE_ASSIGN_STAT";
         case NODE_BOOLEAN_CONST: return "NODE_BOOLEAN_CONST";
         case NODE_BOOLEAN_TYPE: return "NODE_BOOLEAN_TYPE";
         case NODE_BREAK_STAT: return "NODE_BREAK_STAT";
         case NODE_COND_EXPR: return "NODE_COND_EXPR";
+        case NODE_CONDITION_AND_EXPRESSION: return "NODE_CONDITION_AND_STATEMENT";
+        case NODE_CONDITION_AND_STATEMENT: return "NODE_CONDITION_AND_STATEMENT";
         case NODE_DIVIDE_EXPR: return "NODE_DIVIDE_EXPR";
         case NODE_EQ_EXPR: return "NODE_EQ_EXPR";
         case NODE_EXIT_STAT: return "NODE_EXIT_STAT";
@@ -821,6 +892,7 @@ node_type_string(enum node_type type)
         case NODE_FORMAL_DECL: return "NODE_FORMAL_DECL";
         case NODE_FOR_STAT: return "NODE_FOR_STAT";
         case NODE_FUNCTION_DECL: return "NODE_FUNCTION_DECL";
+        case NODE_FUNCTION_TYPES: return "NODE_FUNCTION_TYPES";
         case NODE_GREATEREQ_EXPR: return "NODE_GREATEREQ_EXPR";
         case NODE_GREATER_EXPR: return "NODE_GREATER_EXPR";
         case NODE_ID_LIST: return "NODE_ID_LIST";
