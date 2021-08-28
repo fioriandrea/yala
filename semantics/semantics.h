@@ -10,8 +10,27 @@
 #define MAX_CONDITIONAL_LEN 400
 #define MAX_ARITY UINT8_MAX
 
+#define LIST_DECLARE(name, type) \
+        struct name \
+        { \
+                int len; \
+                int cap; \
+                type *buffer; \
+        }; \
+        void name##_init(struct name *list); \
+        int name##_push(struct name *list, type data); \
+        type name##_pop(struct name *list); \
+        type name##_at(struct name *list, int i); \
+        int name##_len(struct name *list); \
+        void name##_free(struct name *list);
+
+
 enum opcode {
-        OP_LOC_LONG, /* constants */
+        OP_LOCI_LONG, /* constants */
+        OP_LOCB_LONG,
+        OP_LOCS_LONG,
+        OP_LOCV_LONG,
+        OP_LOCF_LONG,
         OP_PUSH_BYTE,
 
         OP_ADDI, /* integer arithmetic */
@@ -53,6 +72,8 @@ enum opcode {
 
         OP_READ,
 
+        OP_RETURN,
+
         OP_HALT,
 };
 
@@ -63,9 +84,12 @@ enum value_type {
         VAL_BOOLEAN,
         VAL_STRING,
         VAL_VECTOR,
+        VAL_FUNCTION,
 };
 
 #define MAX_VECTOR_DIMENSIONS 50
+
+LIST_DECLARE(arg_types, struct semantic_type)
 
 struct semantic_type {
         enum value_type id;
@@ -73,6 +97,9 @@ struct semantic_type {
         int dimensions[MAX_VECTOR_DIMENSIONS];
         int rank;
         int size;
+        int param_types_start_index;
+        int ret_type_index;
+        struct arg_types *arg_types;
 };
 
 struct value_string {
@@ -86,11 +113,16 @@ struct value_vector {
         int size;
 };
 
+struct value_function {
+        struct bytecode *code;
+};
+
 union value {
         int integer;
         int boolean;
         struct value_string string;
         struct value_vector vector;
+        struct value_function function;
 };
 
 struct run_type run_type_scalar(enum value_type id);
@@ -105,11 +137,9 @@ int values_equal(union value val0, union value val1, enum value_type type, enum 
 int semantic_types_comparable(struct semantic_type lefttype, struct semantic_type righttype);
 int compare_values(union value val0, union value val1, enum value_type type);
 int semantic_type_equal(struct semantic_type type0, struct semantic_type type1);
-struct run_type semantic_type_to_run_type(struct semantic_type st);
 struct semantic_type semantic_type_scalar(enum value_type vt);
 void semantic_type_print(struct semantic_type semantic_type);
-void run_type_print(struct run_type type);
-char * value_type_to_string(enum value_type vt);
+char *value_type_to_string(enum value_type vt);
 int index_flattened(int *dimensions, int *indices, int length);
 union value vector_value_get_element_at(union value vec, int i);
 void vector_value_set_element_at(union value vec, int i, union value val);
@@ -123,20 +153,6 @@ struct lineinfo {
 };
 
 #define MAX_CONSTANTS UINT8_MAX
-
-#define LIST_DECLARE(name, type) \
-        struct name \
-        { \
-                int len; \
-                int cap; \
-                type *buffer; \
-        }; \
-        void name##_init(struct name *list); \
-        int name##_push(struct name *list, type data); \
-        type name##_pop(struct name *list); \
-        type name##_at(struct name *list, int i); \
-        int name##_len(struct name *list); \
-        void name##_free(struct name *list);
 
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
@@ -157,6 +173,7 @@ struct lineinfo bytecode_lineinfo_at(struct bytecode *code, int i);
 union value bytecode_constant_at(struct bytecode *code, uint16_t address);
 void bytecode_free(struct bytecode *code);
 void disassemble(struct bytecode *code);
+void disassemble_helper(struct bytecode *code, int indentation);
 
 struct bytecode *generate_bytecode(struct tree_node *parsetree);
 
@@ -190,6 +207,8 @@ struct environment {
 
         struct break_likes break_likes;
         int loopdepth;
+
+        struct arg_types arg_types;
 };
 
 void emit_statement(struct environment *env, struct tree_node *root);

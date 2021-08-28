@@ -70,6 +70,7 @@ static struct tree_node *var_decl_list(struct parser *ps);
 static struct tree_node *var_decl_list_until(struct parser *ps, enum token_type rightdelim);
 static int eat_module_name_error(struct parser *ps, struct token module_name);
 static struct tree_node *wrap_expr_in_statement(struct tree_node *exprnode);
+static struct tree_node *wrap_expr_in_return_statement(struct tree_node *exprnode);
 
 struct tree_node *
 parse(char *program, int programlen)
@@ -268,7 +269,7 @@ function_decl_stat(struct parser *ps)
         eat_error(ps, TOKEN_BEGIN);
         eat_module_name_error(ps, res->left->value);
         res->child = new_tree_node_at_current(ps, NODE_STAT_LIST);
-        res->child->child = wrap_expr_in_statement(expr(ps));
+        res->child->child = wrap_expr_in_return_statement(expr(ps));
         eat_error(ps, TOKEN_END);
         eat_module_name_error(ps, res->left->value);
         return res;
@@ -326,6 +327,16 @@ static struct tree_node *
 wrap_expr_in_statement(struct tree_node *exprnode)
 {
         struct tree_node *node = new_tree_node(NODE_EXPR_STAT);
+        node->child = exprnode;
+        if (node->child)
+                node->value = node->child->value;
+        return node;
+}
+
+static struct tree_node *
+wrap_expr_in_return_statement(struct tree_node *exprnode)
+{
+        struct tree_node *node = new_tree_node(NODE_RETURN_STAT);
         node->child = exprnode;
         if (node->child)
                 node->value = node->child->value;
@@ -920,6 +931,7 @@ node_type_string(enum node_type type)
         case NODE_PROGRAM: return "NODE_PROGRAM";
         case NODE_READ_STAT: return "NODE_READ_STAT";
         case NODE_REPEAT_STAT: return "NODE_REPEAT_STAT";
+        case NODE_RETURN_STAT: return "NODE_RETURN_STAT";
         case NODE_STAT_BODY: return "NODE_STAT_BODY";
         case NODE_STAT_LIST: return "NODE_STAT_LIST";
         case NODE_STRING_CONST: return "NODE_STRING_CONST";

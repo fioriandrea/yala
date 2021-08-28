@@ -164,7 +164,11 @@ vm_run(struct vm *vm)
         for (;;) {
         current = advance_ip(vm);
         switch (current) {
-        case OP_LOC_LONG:
+        case OP_LOCI_LONG:
+        case OP_LOCB_LONG:
+        case OP_LOCS_LONG:
+        case OP_LOCV_LONG:
+        case OP_LOCF_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);

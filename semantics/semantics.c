@@ -15,7 +15,10 @@ static void emit_assign_statement(struct environment *env, struct tree_node *roo
 static void emit_repeat_statement(struct environment *env, struct tree_node *root);
 static void emit_while_statement(struct environment *env, struct tree_node *root);
 static void emit_if_statement(struct environment *env, struct tree_node *root);
-static int emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms);
+static int emit_declare_local_default(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms);
+static void emit_function_declaration(struct environment *env, struct tree_node *root);
+static struct semantic_type build_function_semantic_type(struct environment *env, struct tree_node *root);
+static void emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node);
 static void emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type);
 static void push_loop(struct environment *env);
 static void pop_loop(struct environment *env);
@@ -25,7 +28,7 @@ static void emit_pop_scope(struct environment *env, struct tree_node *node);
 static void emit_push_scope(struct environment *env, struct tree_node *node);
 static int emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen);
 static void emit_constant(struct environment *env, struct tree_node *root, union value val);
-static void emit_load_constant(struct environment *env, struct tree_node *root, union value val);
+static void emit_load_constant(struct environment *env, struct tree_node *root, enum value_type type, union value val);
 static struct semantic_type emit_vector_constant(struct environment *env, struct tree_node *root, int depth);
 static void emit_popv(struct environment *env, struct tree_node *node, struct semantic_type type);
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
@@ -81,7 +84,7 @@ emit_statement(struct environment *env, struct tree_node *root)
         case NODE_VAR_DECL:
                 node = root->left->child;
                 while (node != NULL) {
-                        emit_declare_local(env, node, type_node_to_type(env, root->right), LOCAL_PERM_RW);
+                        emit_declare_local_default(env, node, type_node_to_type(env, root->right), LOCAL_PERM_RW);
                         node = node->next;
                 }
                 break;
@@ -144,6 +147,9 @@ emit_statement(struct environment *env, struct tree_node *root)
                 break;
         case NODE_EXPR_STAT:
                 emit_popv(env, root, emit_expression(env, root->child));
+                break;
+        case NODE_FUNCTION_DECL:
+                emit_function_declaration(env, root);
                 break;
         case NODE_EXIT_STAT:
                 emit_byte(env, root, OP_HALT);
@@ -294,19 +300,19 @@ emit_expression(struct environment *env, struct tree_node *root)
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_constant(env, root, value_from_c_bool(parse_boolean_token(root->value)));
+                emit_load_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
                 return booltype;
         case NODE_INTGER_CONST:
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_constant(env, root, value_from_c_int(parse_integer_token(root->value)));
+                emit_load_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(root->value)));
                 return inttype;
         case NODE_STRING_CONST:
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_constant(env, root, value_from_token(root->value));
+                emit_load_constant(env, root, VAL_STRING, value_from_token(root->value));
                 return strtype;
         case NODE_VECTOR_CONST:
                 return emit_vector_constant(env, root, 0);
@@ -374,9 +380,17 @@ emit_constant(struct environment *env, struct tree_node *root, union value val)
 }
 
 static void
-emit_load_constant(struct environment *env, struct tree_node *root, union value val)
+emit_load_constant(struct environment *env, struct tree_node *root, enum value_type type, union value val)
 {
-        emit_byte(env, root, OP_LOC_LONG);
+        enum opcode op;
+        switch (type) {
+                case VAL_INTEGER: op = OP_LOCI_LONG; break;
+                case VAL_BOOLEAN: op = OP_LOCB_LONG; break;
+                case VAL_STRING: op = OP_LOCS_LONG; break;
+                case VAL_VECTOR: op = OP_LOCV_LONG; break;
+                case VAL_FUNCTION: op = OP_LOCF_LONG; break;
+        }
+        emit_byte(env, root, op);
         emit_constant(env, root, val);
 }
 
@@ -488,6 +502,7 @@ environment_init(struct environment *env, struct bytecode *code)
         env->panic = 0;
         break_likes_init(&env->break_likes);
         env->loopdepth = 0;
+        arg_types_init(&env->arg_types);
 }
 
 static void
@@ -495,6 +510,7 @@ environment_free(struct environment *env)
 {
         locals_free(&env->locals);
         break_likes_free(&env->break_likes);
+        arg_types_free(&env->arg_types);
 }
 
 static int
@@ -605,21 +621,28 @@ init_local(struct local *loc, struct token name, struct semantic_type type, int 
 }
 
 static int
-emit_declare_local(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms)
+declare_local_in_env(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms)
 {
         if (locals_len(&env->locals) == MAX_LOCALS) {
                 semantic_error(env, current, "maximum number of local variables exceeded");
-                return 0;
+                return -1;
         }
         int localindex;
         if ((localindex = environment_local_get(env, current->value)) >= 0 && locals_at(&env->locals, localindex).depth == env->depth) {
                 semantic_error(env, current, "variable already declared");
-                return 0;
+                return -1;
         }
-        emit_variable_default(env, current, type);
         struct local topush;
         init_local(&topush, current->value, type, env->depth, perms);
         return locals_push(&env->locals, topush) - 1;
+}
+
+static int
+emit_declare_local_default(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms)
+{
+        int localindex = declare_local_in_env(env, current, type, perms);
+        emit_variable_default(env, current, type);
+        return localindex;
 }
 
 static void
@@ -826,15 +849,15 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         forcond_node.right = NULL;
         forcond_node.next = NULL;
         forcond_node.value = forcond_token;
-        
+
         emit_push_scope(env, root);
 
         struct semantic_type inttype = semantic_type_scalar(VAL_INTEGER);
-        int incindex = emit_declare_local(env, assign->left, inttype, LOCAL_PERM_RW);
+        int incindex = emit_declare_local_default(env, assign->left, inttype, LOCAL_PERM_RW);
         emit_assign_statement(env, assign);
         env->locals.buffer[locals_len(&env->locals) - 1].perms = LOCAL_PERM_R;
 
-        int forcond_index = emit_declare_local(env, &forcond_node, inttype, LOCAL_PERM_R);
+        int forcond_index = emit_declare_local_default(env, &forcond_node, inttype, LOCAL_PERM_R);
         struct semantic_type type1;
         type1 = emit_expression(env, condition->right);
         if (type1.id != VAL_INTEGER) {
@@ -865,6 +888,96 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         emit_pop_scope(env, root);
 
         pop_loop(env);
+}
+
+static void
+emit_function_declaration(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *function_types_node = root->right;
+        struct tree_node *var_decls_node = function_types_node->left;
+        struct tree_node *function_name_node = root->left;
+        struct tree_node *return_type_node = function_types_node->right;
+        struct tree_node *statements_node = root->child;
+
+        struct environment subenv;
+        struct bytecode *subcode = malloc(sizeof(struct bytecode));
+        bytecode_init(subcode);
+        environment_init(&subenv, subcode);
+
+        for (struct tree_node *node = var_decls_node; node != NULL; node = node->next) {
+                struct tree_node *p = node->left->child;
+                while (p != NULL) {
+                        declare_local_in_env(&subenv, p, type_node_to_type(env, node->right), LOCAL_PERM_R);
+                        p = p->next;
+                }
+        }
+        emit_body(&subenv, statements_node, return_type_node);
+
+        environment_free(&subenv);
+
+
+        struct semantic_type fntype = build_function_semantic_type(env, root);
+
+        union value fnval;
+        fnval.function.code = subcode;
+        emit_load_constant(env, root, VAL_FUNCTION, fnval);
+        declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R);
+}
+
+static void
+emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node)
+{
+        for (struct tree_node *node = statements_node->child; node != NULL; node = node->next) {
+                if (node->type != NODE_RETURN_STAT) {
+                        emit_statement(env, node);
+                        continue;
+                }
+                struct tree_node *ret_expr = node->child;
+                if (return_type_node != NULL) {
+                        struct semantic_type return_type = type_node_to_type(env, return_type_node);
+                        struct semantic_type actual_ret_type = emit_expression(env, ret_expr);
+                        if (!semantic_type_equal(return_type, actual_ret_type)) {
+                                semantic_error(env, node, "mismatching return type in function");
+                                return;
+                        }
+                }
+                emit_two_bytes(env, node, OP_RETURN, return_type_node ? 1 : 0);
+        }
+}
+
+static struct semantic_type
+build_function_semantic_type(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *function_types_node = root->right;
+        struct tree_node *function_name_node = root->left;
+        struct tree_node *var_decls_node = function_types_node->left;
+        struct tree_node *return_type_node = function_types_node->right;
+
+        struct semantic_type fntype;
+        fntype.id = VAL_FUNCTION;
+        fntype.arg_types = &env->arg_types;
+        fntype.ret_type_index = -1;
+        if (return_type_node) {
+                arg_types_push(&env->arg_types, type_node_to_type(env, return_type_node));
+                fntype.ret_type_index = arg_types_len(&env->arg_types) - 1;
+        }
+        fntype.param_types_start_index = arg_types_len(&env->arg_types);
+
+        fntype.rank = 0;
+        for (struct tree_node *var_decl = var_decls_node; var_decl != NULL; var_decl = var_decl->next) {
+                struct tree_node *node = var_decl->left->child;
+                while (node != NULL) {
+                        arg_types_push(&env->arg_types, type_node_to_type(env, var_decl->right));
+                        fntype.rank++;
+                        if (fntype.rank > MAX_ARITY) {
+                                semantic_error(env, node, "max arity exceeded");
+                                break;
+                        }
+                        node = node->next;
+                }
+        }
+
+        return fntype;
 }
 
 static struct semantic_type
@@ -1012,6 +1125,7 @@ char *
 opcodestring(enum opcode code)
 {
         switch (code) {
+        case OP_RETURN: return "OP_RETURN";
         case OP_ADDI: return "OP_ADDI";
         case OP_DIVI: return "OP_DIVI";
         case OP_EMPTY_STRING: return "OP_EMPTY_STRING";
@@ -1025,7 +1139,11 @@ opcodestring(enum opcode code)
         case OP_LEQ: return "OP_LEQ";
         case OP_LT: return "OP_LT";
         case OP_LOC_ALINK_LONG: return "OP_LOC_ALINK_LONG";
-        case OP_LOC_LONG: return "OP_LOC_LONG";
+        case OP_LOCI_LONG: return "OP_LOCI_LONG";
+        case OP_LOCB_LONG: return "OP_LOCB_LONG";
+        case OP_LOCS_LONG: return "OP_LOCS_LONG";
+        case OP_LOCV_LONG: return "OP_LOCV_LONG";
+        case OP_LOCF_LONG: return "OP_LOCF_LONG";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
@@ -1054,12 +1172,32 @@ disassemble_lineinfo(struct bytecode *code, int ip)
 }
 
 static int
-disassemble_constant(struct bytecode *code, int ip)
+disassemble_constant(struct bytecode *code, int ip, enum opcode loctype, int indentation)
 {
         uint8_t constantaddr_left = bytes_at(&code->code, ip++);
         uint8_t constantaddr_right = bytes_at(&code->code, ip++);
         uint16_t constantaddr = join_bytes(constantaddr_left, constantaddr_right);
         printf("%d ", constantaddr);
+        union value v = bytecode_constant_at(code, constantaddr);
+        printf("(");
+        switch (loctype) {
+                case OP_LOCI_LONG:
+                        value_print(v, VAL_INTEGER, VAL_INTEGER);
+                        break;
+                case OP_LOCB_LONG:
+                        value_print(v, VAL_BOOLEAN, VAL_BOOLEAN);
+                        break;
+                case OP_LOCS_LONG:
+                        value_print(v, VAL_STRING, VAL_STRING);
+                        break;
+                case OP_LOCF_LONG:
+                        printf("\n");
+                        disassemble_helper(v.function.code, indentation + 1);
+                        break;
+                default:
+                        break;
+        }
+        printf(")");
         printf(" ");
         return ip;
 }
@@ -1082,17 +1220,24 @@ disassemble_argument_long(struct bytecode *code, int ip)
 }
 
 void
-disassemble(struct bytecode *code)
+disassemble_helper(struct bytecode *code, int indentation)
 {
         int ip = 0;
         while (code && ip < bytes_len(&code->code)) {
+                for (int i = 0; i < indentation; i++) {
+                        printf("\t");
+                }
                 uint8_t instruction = bytes_at(&code->code, ip);
                 printf("%d: %s ", ip, opcodestring(instruction));
                 ip++;
                 switch (instruction) {
-                case OP_LOC_LONG:
+                case OP_LOCI_LONG:
+                case OP_LOCB_LONG:
+                case OP_LOCS_LONG:
+                case OP_LOCV_LONG:
                 case OP_LOC_ALINK_LONG:
-                        ip = disassemble_constant(code, ip);
+                case OP_LOCF_LONG:
+                        ip = disassemble_constant(code, ip, instruction, indentation);
                         break;
                 case OP_SKIP_BACK_LONG:
                 case OP_SKIP_LONG:
@@ -1107,6 +1252,7 @@ disassemble(struct bytecode *code)
                 case OP_GRTEQ:
                 case OP_PUSH_BYTE:
                 case OP_WRITE:
+                case OP_RETURN:
                         ip = disassemble_argument(code, ip);
                         break;
                 case OP_READ:
@@ -1126,6 +1272,12 @@ disassemble(struct bytecode *code)
                 disassemble_lineinfo(code, ip);
                 printf("\n");
         }
+}
+
+void
+disassemble(struct bytecode *code)
+{
+        disassemble_helper(code, 0);
 }
 
 static void

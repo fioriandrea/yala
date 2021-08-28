@@ -88,9 +88,9 @@ enum node_type {
         NODE_BOOLEAN_TYPE,
         NODE_BREAK_STAT,
         NODE_COND_EXPR,
-        NODE_DIVIDE_EXPR,
-        NODE_CONDITION_AND_STATEMENT,
         NODE_CONDITION_AND_EXPRESSION,
+        NODE_CONDITION_AND_STATEMENT,
+        NODE_DIVIDE_EXPR,
         NODE_EQ_EXPR,
         NODE_EXIT_STAT,
         NODE_EXPR_BODY,
@@ -99,6 +99,7 @@ enum node_type {
         NODE_FORMAL_DECL,
         NODE_FOR_STAT,
         NODE_FUNCTION_DECL,
+        NODE_FUNCTION_TYPES,
         NODE_GREATEREQ_EXPR,
         NODE_GREATER_EXPR,
         NODE_ID,
@@ -124,6 +125,7 @@ enum node_type {
         NODE_PROGRAM,
         NODE_READ_STAT,
         NODE_REPEAT_STAT,
+        NODE_RETURN_STAT,
         NODE_STAT_BODY,
         NODE_STAT_LIST,
         NODE_STRING_CONST,
@@ -136,7 +138,6 @@ enum node_type {
         NODE_WHILE_STAT,
         NODE_WRITELN_STAT,
         NODE_WRITE_STAT,
-        NODE_FUNCTION_TYPES,
 };
 
 struct tree_node {

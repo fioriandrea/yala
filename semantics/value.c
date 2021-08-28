@@ -81,6 +81,7 @@ LIST_DEFINE(linelist, struct lineinfo)
 LIST_DEFINE(valuelist, union value)
 LIST_DEFINE(locals, struct local)
 LIST_DEFINE(break_likes, struct break_like)
+LIST_DEFINE(arg_types, struct semantic_type)
 
 void
 bytecode_init(struct bytecode *code)
@@ -149,6 +150,11 @@ value_print(union value v, enum value_type type, enum value_type base)
                         printf(i == v.vector.size - 1 ? "" : ", ");
                 }
                 printf("]");
+                return;
+        case VAL_FUNCTION:
+                printf("(\n");
+                disassemble_helper(v.function.code, 1);
+                printf(")");
                 return;
         }
         printf("unreachable value type %d in value_print", type);
@@ -227,6 +233,8 @@ semantic_type_scalar(enum value_type vt)
         type.base = vt;
         type.rank = 0;
         type.size = 1;
+        type.param_types_start_index = 0;
+        type.ret_type_index = -1;
         return type;
 }
 
@@ -251,7 +259,7 @@ values_equal(union value val0, union value val1, enum value_type type, enum valu
                 }
                 return 1;
         }
-        return -1;
+        return 0;
 }
 
 int
@@ -281,7 +289,19 @@ compare_values(union value val0, union value val1, enum value_type type)
 int
 semantic_type_equal(struct semantic_type type0, struct semantic_type type1)
 {
-        return type0.id == type1.id && type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
+        if (type0.id != type1.id)
+                return 0;
+        if (type0.id != VAL_FUNCTION)
+                return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
+
+        if (type0.rank != type1.rank)
+                return 0;
+        struct arg_types *arg_types = type0.arg_types;
+        for (int i = 0; i < type0.rank; i++) {
+                if (!semantic_type_equal(arg_types_at(arg_types, type0.param_types_start_index + i), arg_types_at(arg_types, type1.param_types_start_index + i)))
+                        return 0;
+        }
+        return 1;
 }
 
 char *
@@ -292,6 +312,7 @@ value_type_to_string(enum value_type vt)
                 case VAL_BOOLEAN: return "VAL_BOOLEAN";
                 case VAL_INTEGER: return "VAL_INTEGER";
                 case VAL_VECTOR: return "VAL_VECTOR";
+                case VAL_FUNCTION: return "VAL_FUNCTION";
         }
         return "unreachable code in value_type_to_string";
 }
@@ -309,6 +330,18 @@ semantic_type_print(struct semantic_type type)
                         printf("of ");
                         semantic_type_print(semantic_type_scalar(type.base));
                         return;
+                }
+                case VAL_FUNCTION: {
+                        printf("(");
+                        for (int i = 0; i < type.rank; i++) {
+                                printf("%s", i == 0 ? "" : ", ");
+                                semantic_type_print(arg_types_at(type.arg_types, type.param_types_start_index + i));
+                        }
+                        printf("): ");
+                        if (type.ret_type_index >= 0)
+                                semantic_type_print(arg_types_at(type.arg_types, type.ret_type_index));
+                        else
+                                printf("void");
                 }
                 default:
                         break;
