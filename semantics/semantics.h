@@ -72,6 +72,7 @@ enum opcode {
 
         OP_READ,
 
+        OP_CALL,
         OP_RETURN,
 
         OP_HALT,
@@ -89,8 +90,6 @@ enum value_type {
 
 #define MAX_VECTOR_DIMENSIONS 50
 
-LIST_DECLARE(arg_types, struct semantic_type)
-
 struct semantic_type {
         enum value_type id;
         enum value_type base;
@@ -101,6 +100,8 @@ struct semantic_type {
         int ret_type_index;
         struct arg_types *arg_types;
 };
+
+LIST_DECLARE(arg_types, struct semantic_type)
 
 struct value_string {
         char *str;
@@ -135,6 +136,8 @@ union value value_from_token(struct token token);
 union value value_from_c_string(char *str);
 int values_equal(union value val0, union value val1, enum value_type type, enum value_type base);
 int semantic_types_comparable(struct semantic_type lefttype, struct semantic_type righttype);
+struct semantic_type semantic_type_return_value(struct semantic_type type);
+struct semantic_type semantic_type_argument_at(struct semantic_type type, int i);
 int compare_values(union value val0, union value val1, enum value_type type);
 int semantic_type_equal(struct semantic_type type0, struct semantic_type type1);
 struct semantic_type semantic_type_scalar(enum value_type vt);

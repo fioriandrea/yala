@@ -225,6 +225,18 @@ value_from_c_string(char *str)
 }
 
 struct semantic_type
+semantic_type_return_value(struct semantic_type type)
+{
+        return arg_types_at(type.arg_types, type.ret_type_index);
+}
+
+struct semantic_type
+semantic_type_argument_at(struct semantic_type type, int i)
+{
+        return arg_types_at(type.arg_types, type.param_types_start_index + i);
+}
+
+struct semantic_type
 semantic_type_scalar(enum value_type vt)
 {
 
@@ -296,9 +308,8 @@ semantic_type_equal(struct semantic_type type0, struct semantic_type type1)
 
         if (type0.rank != type1.rank)
                 return 0;
-        struct arg_types *arg_types = type0.arg_types;
         for (int i = 0; i < type0.rank; i++) {
-                if (!semantic_type_equal(arg_types_at(arg_types, type0.param_types_start_index + i), arg_types_at(arg_types, type1.param_types_start_index + i)))
+                if (!semantic_type_equal(semantic_type_argument_at(type0, i), semantic_type_argument_at(type1, i)))
                         return 0;
         }
         return 1;
@@ -335,11 +346,11 @@ semantic_type_print(struct semantic_type type)
                         printf("(");
                         for (int i = 0; i < type.rank; i++) {
                                 printf("%s", i == 0 ? "" : ", ");
-                                semantic_type_print(arg_types_at(type.arg_types, type.param_types_start_index + i));
+                                semantic_type_print(semantic_type_argument_at(type, i));
                         }
                         printf("): ");
                         if (type.ret_type_index >= 0)
-                                semantic_type_print(arg_types_at(type.arg_types, type.ret_type_index));
+                                semantic_type_print(semantic_type_return_value(type));
                         else
                                 printf("void");
                 }

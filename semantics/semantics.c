@@ -7,6 +7,7 @@
 
 static struct semantic_type emit_cond_expression(struct environment *env, struct tree_node *root);
 static struct semantic_type emit_indexing_expression(struct environment *env, struct tree_node *root);
+static struct semantic_type emit_module_call(struct environment *env, struct tree_node *root);
 static void emit_for_statement(struct environment *env, struct tree_node *root);
 static int environment_local_get_check_write(struct environment *env, struct token name, struct tree_node *root);
 static struct semantic_type emit_op_set_local_lhs_type(struct environment *env, int localindex, struct tree_node *lhs);
@@ -18,7 +19,7 @@ static void emit_if_statement(struct environment *env, struct tree_node *root);
 static int emit_declare_local_default(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms);
 static void emit_function_declaration(struct environment *env, struct tree_node *root);
 static struct semantic_type build_function_semantic_type(struct environment *env, struct tree_node *root);
-static void emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node);
+static void emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node, int arity);
 static void emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type);
 static void push_loop(struct environment *env);
 static void pop_loop(struct environment *env);
@@ -325,6 +326,8 @@ emit_expression(struct environment *env, struct tree_node *root)
                 return locals_at(&env->locals, localindex).type;
         case NODE_INDEXING:
                 return emit_indexing_expression(env, root);
+        case NODE_MODULE_CALL:
+                return emit_module_call(env, root);
         default:
                 semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
         }
@@ -911,12 +914,14 @@ emit_function_declaration(struct environment *env, struct tree_node *root)
                         p = p->next;
                 }
         }
-        emit_body(&subenv, statements_node, return_type_node);
+        struct semantic_type fntype = build_function_semantic_type(env, root);
+
+        emit_body(&subenv, statements_node, return_type_node, fntype.rank);
+
+        env->error = subenv.error;
+        env->panic = subenv.panic;
 
         environment_free(&subenv);
-
-
-        struct semantic_type fntype = build_function_semantic_type(env, root);
 
         union value fnval;
         fnval.function.code = subcode;
@@ -925,7 +930,7 @@ emit_function_declaration(struct environment *env, struct tree_node *root)
 }
 
 static void
-emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node)
+emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node, int arity)
 {
         for (struct tree_node *node = statements_node->child; node != NULL; node = node->next) {
                 if (node->type != NODE_RETURN_STAT) {
@@ -941,7 +946,9 @@ emit_body(struct environment *env, struct tree_node *statements_node, struct tre
                                 return;
                         }
                 }
-                emit_two_bytes(env, node, OP_RETURN, return_type_node ? 1 : 0);
+                if (!return_type_node)
+                        emit_byte(env, node, OP_ZERO);
+                emit_three_bytes(env, node, OP_RETURN, arity, return_type_node ? 1 : 0);
         }
 }
 
@@ -949,7 +956,6 @@ static struct semantic_type
 build_function_semantic_type(struct environment *env, struct tree_node *root)
 {
         struct tree_node *function_types_node = root->right;
-        struct tree_node *function_name_node = root->left;
         struct tree_node *var_decls_node = function_types_node->left;
         struct tree_node *return_type_node = function_types_node->right;
 
@@ -1023,6 +1029,38 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
                         return type0;
         }
         return type0;
+}
+
+static struct semantic_type
+emit_module_call(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *called = root->left;
+        struct semantic_type called_type;
+        struct semantic_type dummy = semantic_type_scalar(VAL_INTEGER);
+
+        called_type = emit_expression(env, called);
+        if (called_type.id != VAL_FUNCTION) {
+                semantic_error(env, called, "cannot call non callable variable");
+                return dummy;
+        }
+        if (called_type.ret_type_index < 0) {
+                semantic_error(env, called, "cannot use a procedure as an expression");
+                return dummy;
+        }
+        int argcount = 0;
+        for (struct tree_node *expr_node = root->right; expr_node != NULL; expr_node = expr_node->next) {
+                argcount++;
+                if (argcount > called_type.rank)
+                        break;
+                struct semantic_type expr_type = emit_expression(env, expr_node);
+                if (!semantic_type_equal(semantic_type_argument_at(called_type, argcount - 1), expr_type)) {
+                        semantic_error(env, expr_node, "mismatching argument type");
+                }
+        }
+        if (argcount != called_type.rank)
+                semantic_error(env, root, "wrong number of arguments");
+        emit_two_bytes(env, root, OP_CALL, called_type.rank);
+        return semantic_type_return_value(called_type);
 }
 
 static struct semantic_type
@@ -1125,25 +1163,25 @@ char *
 opcodestring(enum opcode code)
 {
         switch (code) {
-        case OP_RETURN: return "OP_RETURN";
         case OP_ADDI: return "OP_ADDI";
+        case OP_CALL: return "OP_CALL";
         case OP_DIVI: return "OP_DIVI";
         case OP_EMPTY_STRING: return "OP_EMPTY_STRING";
         case OP_EQUA: return "OP_EQUA";
         case OP_FALSE: return "OP_FALSE";
         case OP_GET_INDEX: return "OP_GET_INDEX";
         case OP_GET_LOCAL_LONG: return "OP_GET_LOCAL_LONG";
-        case OP_HALT: return "OP_HALT";
         case OP_GRTEQ: return "OP_GRTEQ";
         case OP_GRT: return "OP_GRT";
+        case OP_HALT: return "OP_HALT";
         case OP_LEQ: return "OP_LEQ";
-        case OP_LT: return "OP_LT";
         case OP_LOC_ALINK_LONG: return "OP_LOC_ALINK_LONG";
-        case OP_LOCI_LONG: return "OP_LOCI_LONG";
         case OP_LOCB_LONG: return "OP_LOCB_LONG";
+        case OP_LOCF_LONG: return "OP_LOCF_LONG";
+        case OP_LOCI_LONG: return "OP_LOCI_LONG";
         case OP_LOCS_LONG: return "OP_LOCS_LONG";
         case OP_LOCV_LONG: return "OP_LOCV_LONG";
-        case OP_LOCF_LONG: return "OP_LOCF_LONG";
+        case OP_LT: return "OP_LT";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
         case OP_NOT: return "OP_NOT";
@@ -1153,6 +1191,7 @@ opcodestring(enum opcode code)
         case OP_POPV: return "OP_POPV";
         case OP_PUSH_BYTE: return "OP_PUSH_BYTE";
         case OP_READ: return "OP_READ";
+        case OP_RETURN: return "OP_RETURN";
         case OP_SET_INDEX_LOCAL_LONG: return "OP_SET_INDEX_LOCAL_LONG";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
         case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
@@ -1252,12 +1291,12 @@ disassemble_helper(struct bytecode *code, int indentation)
                 case OP_GRTEQ:
                 case OP_PUSH_BYTE:
                 case OP_WRITE:
-                case OP_RETURN:
                         ip = disassemble_argument(code, ip);
                         break;
                 case OP_READ:
                 case OP_GET_INDEX:
                 case OP_EQUA:
+                case OP_RETURN:
                         ip = disassemble_argument(code, ip);
                         ip = disassemble_argument(code, ip);
                         break;

@@ -7,11 +7,11 @@
 #include "vm.h"
 
 static void
-runtime_error(struct vm *vm, int pos, char *fmt, ...)
+runtime_error(struct vm *vm, char *fmt, ...)
 {
         va_list args;
         va_start(args, fmt);
-        struct lineinfo linfo = linelist_at(&vm->code->lines, pos);
+        struct lineinfo linfo = linelist_at(&vm->framese->code->lines, vm->framese->ip);
         fprintf(stderr, "runtime error ");
         fprintf(stderr, "[at %d:%d]: ", linfo.line, linfo.linepos);
         vfprintf(stderr, fmt, args);
@@ -22,46 +22,53 @@ runtime_error(struct vm *vm, int pos, char *fmt, ...)
 void
 vm_init(struct vm *vm, struct bytecode *code)
 {
-        vm->code = code;
-        vm->sp = vm->stack;
-        vm->asp = vm->astack;
-        vm->ip = 0;
+        vm->framese = vm->framestack;
+        stack_frame_init(vm->framese, vm->stack, vm->framese->asp, code);
+}
+
+void
+stack_frame_init(struct stack_frame *sf, union value *sp, union value *asp, struct bytecode *code)
+{
+        sf->ip = 0;
+        sf->sp = sp;
+        sf->asp = asp;
+        sf->code = code;
 }
 
 static uint8_t
 advance_ip(struct vm *vm)
 {
-        return bytecode_byte_at(vm->code, vm->ip++);
+        return bytecode_byte_at(vm->framese->code, vm->framese->ip++);
 }
 
 static void
 pushv(struct vm *vm, union value val)
 {
-        *vm->sp++ = val;
+        *vm->framese->sp++ = val;
 }
 
 static union value
 popv(struct vm *vm)
 {
-        return *--vm->sp;
+        return *--vm->framese->sp;
 }
 
 static union value
 peekv(struct vm *vm, int offset)
 {
-        return *(vm->sp - offset);
+        return *(vm->framese->sp - offset);
 }
 
 static void
 pusha(struct vm *vm, union value val)
 {
-        *vm->asp++ = val;
+        *vm->framese->asp++ = val;
 }
 
 static void
 popa(struct vm *vm, int size) {
         for (int i = 0; i < size; i++) {
-                vm->asp--;
+                vm->framese->asp--;
         }
 }
 
@@ -134,7 +141,7 @@ is_out_of_bounds(struct vm *vm, int *indicesbuff, int *dimensionsbuff, int len)
 {
         for (int i = 0; i < len; i++) {
                 if (indicesbuff[i] >= dimensionsbuff[i] || indicesbuff[i] < 0) {
-                        runtime_error(vm, vm->ip - 1, "index out of bound (max index %d)", dimensionsbuff[i] - 1);
+                        runtime_error(vm, "index out of bound (max index %d)", dimensionsbuff[i] - 1);
                         return 1;
                 }
         }
@@ -172,7 +179,7 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
-                pushv(vm, bytecode_constant_at(vm->code, arglong0));
+                pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
                 break;
         case OP_PUSH_BYTE:
                 val0 = value_from_c_int(advance_ip(vm));
@@ -197,7 +204,7 @@ vm_run(struct vm *vm)
                 val1 = popv(vm);
                 val0 = popv(vm);
                 if (val1.integer == 0) {
-                        runtime_error(vm, vm->ip - 1, "division by 0");
+                        runtime_error(vm, "division by 0");
                         return 0;
                 }
                 pushv(vm, value_from_c_int(val0.integer / val1.integer));
@@ -253,13 +260,13 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
-                vm->ip += arglong0;
+                vm->framese->ip += arglong0;
                 break;
         case OP_SKIP_BACK_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
-                vm->ip -= arglong0;
+                vm->framese->ip -= arglong0;
                 break;
         case OP_SKIPF_LONG:
                 arg0 = advance_ip(vm);
@@ -267,7 +274,7 @@ vm_run(struct vm *vm)
                 arglong0 = join_bytes(arg0, arg1);
                 val0 = peekv(vm, 1);
                 if (!val0.boolean) {
-                        vm->ip += arglong0;
+                        vm->framese->ip += arglong0;
                 }
                 break;
         case OP_POPV:
@@ -285,15 +292,15 @@ vm_run(struct vm *vm)
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 arglong0 = join_bytes(arg0, arg1);
-                vm->code->constants.buffer[arglong0].vector.astackent = vm->asp - vm->code->constants.buffer[arglong0].vector.size;
-                pushv(vm, bytecode_constant_at(vm->code, arglong0));
+                vm->framese->code->constants.buffer[arglong0].vector.astackent = vm->framese->asp - vm->framese->code->constants.buffer[arglong0].vector.size;
+                pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
                 break;
         case OP_NEWLINE:
                 printf("\n");
                 break;
         case OP_WRITE: {
                 arg0 = advance_ip(vm);
-                for (union value *p = vm->sp - arg0 * 3; p < vm->sp;) {
+                for (union value *p = vm->framese->sp - arg0 * 3; p < vm->framese->sp;) {
                         union value val = *p++;
                         enum value_type type = (p++)->integer;
                         enum value_type base = (p++)->integer;
@@ -311,6 +318,21 @@ vm_run(struct vm *vm)
         case OP_READ:
                 arg0 = advance_ip(vm);
                 dispatch_op_read(vm, arg0, readbuff, OP_READ_BUF_CAP);
+                break;
+        case OP_CALL:
+                arg0 = advance_ip(vm); /* function arity */
+                val0 = peekv(vm, arg0 + 1);
+                stack_frame_init(vm->framese + 1, vm->framese->sp, vm->framese->asp, val0.function.code);
+                vm->framese++;
+                break;
+        case OP_RETURN:
+                arg0 = advance_ip(vm); /* function arity */
+                arg1 = advance_ip(vm);
+                val0 = popv(vm);
+                vm->framese--;
+                vm->framese->sp -= arg0 + 1;
+                if (arg1)
+                        pushv(vm, val0);
                 break;
         case OP_GET_LOCAL_LONG:
                 arg0 = advance_ip(vm);
@@ -380,14 +402,14 @@ vm_run(struct vm *vm)
                         }
                         union value result_value;
                         result_value.vector.size = count;
-                        result_value.vector.astackent = vm->asp - count;
+                        result_value.vector.astackent = vm->framese->asp - count;
                         pushv(vm, result_value);
                 }
                 break;
         case OP_HALT:
                 return 0;
         default:
-                runtime_error(vm, vm->ip - 1, "NOT IMPLEMENTED: %s\n", opcodestring(current));
+                runtime_error(vm, "NOT IMPLEMENTED: %s\n", opcodestring(current));
                 return 0;
         }
         }
