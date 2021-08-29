@@ -402,7 +402,7 @@ emit_load_constant(struct environment *env, struct tree_node *root, enum value_t
                 case VAL_STRING: op = OP_LOCS_LONG; break;
                 case VAL_VECTOR: op = OP_LOCV_LONG; break;
                 case VAL_FUNCTION: op = OP_LOCF_LONG; break;
-                case VAL_VOID: op = OP_LOCI_LONG; break; /* TODO */
+                case VAL_VOID: op = OP_LOCVO_LONG; break;
         }
         emit_byte(env, root, op);
         emit_constant(env, root, val);
@@ -963,17 +963,12 @@ forward_declare_function(struct environment *env, struct tree_node *root)
 {
         struct tree_node *function_name_node = root->left;
         struct tree_node *function_types_node = root->right;
-        struct tree_node *arg_decls_node = function_types_node->left;
-        struct tree_node *return_type_node = function_types_node->right;
         struct tree_node *declaration_blocks_node = root->child;
-        struct tree_node *var_decls_node = declaration_blocks_node->left;
-        struct tree_node *mod_decls_node = declaration_blocks_node->right;
-        struct tree_node *statements_node = root->child->next;
 
         struct semantic_type fntype = build_function_semantic_type(env, root);
         declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R, NULL);
         union value fnval;
-        fnval.function.code = 1;
+        fnval.function.code = NULL;
         emit_load_constant(env, root, VAL_FUNCTION, fnval);
         return env->code->constants.len - 1;
 }
@@ -1056,8 +1051,6 @@ emit_program_declaration(struct environment *env, struct tree_node *root)
                 return;
         }
         patch_module_declaration(env, root, forward_declare_function(env, root));
-        struct tree_node *function_name_node = root->left;
-        struct local_position localpos;
         emit_two_bytes(env, root, OP_CALL, 0);
 }
 
@@ -1088,8 +1081,8 @@ emit_body(struct environment *env, struct tree_node *statements_node, struct tre
                 struct tree_node *ret_expr = node->child;
                 struct semantic_type return_type, actual_ret_type;
                 if (return_type_node != NULL) {
-                        struct semantic_type return_type = type_node_to_type(env, return_type_node);
-                        struct semantic_type actual_ret_type = emit_expression(env, ret_expr);
+                        return_type = type_node_to_type(env, return_type_node);
+                        actual_ret_type = emit_expression(env, ret_expr);
                 } else {
                         return_type = semantic_type_void();
                         actual_ret_type = semantic_type_void();
@@ -1332,6 +1325,7 @@ opcodestring(enum opcode code)
         case OP_LOCI_LONG: return "OP_LOCI_LONG";
         case OP_LOCS_LONG: return "OP_LOCS_LONG";
         case OP_LOCV_LONG: return "OP_LOCV_LONG";
+        case OP_LOCVO_LONG: return "OP_LOCVO_LONG";
         case OP_LT: return "OP_LT";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";

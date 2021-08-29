@@ -191,6 +191,7 @@ vm_run(struct vm *vm)
         case OP_LOCB_LONG:
         case OP_LOCS_LONG:
         case OP_LOCV_LONG:
+        case OP_LOCVO_LONG:
         case OP_LOCF_LONG:
                 arglong0 = advance_long_ip(vm);
                 pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));

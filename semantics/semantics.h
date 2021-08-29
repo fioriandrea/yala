@@ -31,6 +31,7 @@ enum opcode {
         OP_LOCS_LONG,
         OP_LOCV_LONG,
         OP_LOCF_LONG,
+        OP_LOCVO_LONG,
         OP_PUSH_BYTE,
 
         OP_ADDI, /* integer arithmetic */
