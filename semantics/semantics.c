@@ -975,8 +975,8 @@ emit_function_declaration(struct environment *env, struct tree_node *root)
 
         emit_body(&subenv, statements_node, return_type_node, fntype.rank);
 
-        env->error = subenv.error;
-        env->panic = subenv.panic;
+        env->error = env->error || subenv.error;
+        env->panic = env->panic || subenv.panic;
 
         environment_free(&subenv);
 
