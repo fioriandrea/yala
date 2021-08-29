@@ -52,6 +52,9 @@ static int parse_integer_token(struct token token);
 static struct semantic_type type_node_to_type(struct environment *env, struct tree_node *node);
 static struct semantic_type vector_type_node_to_type(struct environment *env, struct tree_node *node);
 static void semantic_error(struct environment *env, struct tree_node *root, char *fmt, ...);
+static void emit_var_decl(struct environment *env, struct tree_node *root);
+static void emit_module_declaration(struct environment *env, struct tree_node *root);
+static void emit_program_declaration(struct environment *env, struct tree_node *root);
 
 struct bytecode *
 generate_bytecode(struct tree_node *parsetree)
@@ -86,12 +89,7 @@ emit_statement(struct environment *env, struct tree_node *root)
                 emit_pop_scope(env, root);
                 break;
         case NODE_VAR_DECL:
-                node = root->left->child;
-                while (node != NULL) {
-                        if (!emit_declare_local_default(env, node, type_node_to_type(env, root->right), LOCAL_PERM_RW, NULL))
-                                break;
-                        node = node->next;
-                }
+                emit_var_decl(env, root);
                 break;
         case NODE_WRITE_STAT:
         case NODE_WRITELN_STAT:
@@ -153,8 +151,8 @@ emit_statement(struct environment *env, struct tree_node *root)
         case NODE_EXPR_STAT:
                 emit_popv(env, root, emit_expression(env, root->child));
                 break;
-        case NODE_FUNCTION_DECL:
-                emit_function_declaration(env, root);
+        case NODE_PROGRAM:
+                emit_program_declaration(env, root);
                 break;
         case NODE_EXIT_STAT:
                 emit_byte(env, root, OP_HALT);
@@ -404,6 +402,7 @@ emit_load_constant(struct environment *env, struct tree_node *root, enum value_t
                 case VAL_STRING: op = OP_LOCS_LONG; break;
                 case VAL_VECTOR: op = OP_LOCV_LONG; break;
                 case VAL_FUNCTION: op = OP_LOCF_LONG; break;
+                case VAL_VOID: op = OP_LOCI_LONG; break; /* TODO */
         }
         emit_byte(env, root, op);
         emit_constant(env, root, val);
@@ -460,6 +459,8 @@ emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen
 static struct semantic_type
 type_node_to_type(struct environment *env, struct tree_node *node)
 {
+        if (!node)
+                return semantic_type_void();
         struct semantic_type type;
         switch (node->type) {
         case NODE_STRING_TYPE:
@@ -947,13 +948,32 @@ emit_for_statement(struct environment *env, struct tree_node *root)
 }
 
 static void
-emit_function_declaration(struct environment *env, struct tree_node *root)
+emit_var_decl(struct environment *env, struct tree_node *root)
 {
-        struct tree_node *function_types_node = root->right;
-        struct tree_node *var_decls_node = function_types_node->left;
+        struct tree_node *node = root->left->child;
+        while (node != NULL) {
+                if (!emit_declare_local_default(env, node, type_node_to_type(env, root->right), LOCAL_PERM_RW, NULL))
+                        break;
+                node = node->next;
+        }
+}
+
+static void
+emit_module_declaration(struct environment *env, struct tree_node *root)
+{
+        /* left: name,
+        right: param (left) and return type (right),
+        child0: fn var decl (left) and  fn module decl (right)
+        child1: body (stat list)
+        */
         struct tree_node *function_name_node = root->left;
+        struct tree_node *function_types_node = root->right;
+        struct tree_node *arg_decls_node = function_types_node->left;
         struct tree_node *return_type_node = function_types_node->right;
-        struct tree_node *statements_node = root->child;
+        struct tree_node *declaration_blocks_node = root->child;
+        struct tree_node *var_decls_node = declaration_blocks_node->left;
+        struct tree_node *mod_decls_node = declaration_blocks_node->right;
+        struct tree_node *statements_node = root->child->next;
 
         struct semantic_type fntype = build_function_semantic_type(env, root);
 
@@ -964,13 +984,20 @@ emit_function_declaration(struct environment *env, struct tree_node *root)
 
         declare_local_in_env(&subenv, function_name_node, fntype, LOCAL_PERM_R, NULL);
 
-        for (struct tree_node *node = var_decls_node; node != NULL; node = node->next) {
+        for (struct tree_node *node = arg_decls_node; node != NULL; node = node->next) {
                 struct tree_node *p = node->left->child;
                 while (p != NULL) {
-                        if (!declare_local_in_env(&subenv, p, type_node_to_type(env, node->right), LOCAL_PERM_R, NULL))
+                        if (!declare_local_in_env(&subenv, p, type_node_to_type(&subenv, node->right), LOCAL_PERM_R, NULL))
                                 break;
                         p = p->next;
                 }
+        }
+
+        for (struct tree_node *node = var_decls_node; node != NULL; node = node->next) {
+                emit_var_decl(&subenv, node);
+        }
+        for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
+                emit_function_declaration(&subenv, node);
         }
 
         emit_body(&subenv, statements_node, return_type_node, fntype.rank);
@@ -987,6 +1014,36 @@ emit_function_declaration(struct environment *env, struct tree_node *root)
 }
 
 static void
+emit_program_declaration(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *function_types_node = root->right;
+        if (function_types_node->left != NULL || function_types_node->right != NULL) {
+                semantic_error(env, root, "cannot have parameters in program (it is not a procedure)");
+                return;
+        }
+        emit_module_declaration(env, root);
+        struct tree_node *function_name_node = root->left;
+        struct local_position localpos;
+        emit_two_bytes(env, root, OP_CALL, 0);
+}
+
+static void
+emit_function_declaration(struct environment *env, struct tree_node *root)
+{
+        struct tree_node *function_types_node = root->right;
+        if (function_types_node->right == NULL) {
+                semantic_error(env, root, "expected return type for function");
+                return;
+        }
+        struct tree_node *declaration_blocks_node = root->child;
+        if (declaration_blocks_node->left != NULL || declaration_blocks_node->right != NULL) {
+                semantic_error(env, root, "cannot have local variables in function");
+                return;
+        }
+        emit_module_declaration(env, root);
+}
+
+static void
 emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node, int arity)
 {
         for (struct tree_node *node = statements_node->child; node != NULL; node = node->next) {
@@ -995,19 +1052,22 @@ emit_body(struct environment *env, struct tree_node *statements_node, struct tre
                         continue;
                 }
                 struct tree_node *ret_expr = node->child;
+                struct semantic_type return_type, actual_ret_type;
                 if (return_type_node != NULL) {
                         struct semantic_type return_type = type_node_to_type(env, return_type_node);
                         struct semantic_type actual_ret_type = emit_expression(env, ret_expr);
-                        if (!semantic_type_equal(return_type, actual_ret_type)) {
-                                semantic_error(env, node, "mismatching return type in function");
-                                return;
-                        }
-                        if (return_type.id == VAL_VECTOR)
-                                emit_byte(env, node, OP_SHIFT_ASTACKENT_TO_BASE);
                 } else {
-                        emit_byte(env, node, OP_ZERO);
+                        return_type = semantic_type_void();
+                        actual_ret_type = semantic_type_void();
+                        emit_load_constant(env, node, VAL_VOID, value_void());
                 }
-                emit_three_bytes(env, node, OP_RETURN, arity, return_type_node ? 1 : 0);
+                if (!semantic_type_equal(return_type, actual_ret_type)) {
+                        semantic_error(env, node, "mismatching return type in function");
+                        return;
+                }
+                if (return_type.id == VAL_VECTOR)
+                        emit_byte(env, node, OP_SHIFT_ASTACKENT_TO_BASE);
+                emit_two_bytes(env, node, OP_RETURN, arity);
         }
 }
 
@@ -1047,24 +1107,22 @@ static struct semantic_type
 build_function_semantic_type(struct environment *env, struct tree_node *root)
 {
         struct tree_node *function_types_node = root->right;
-        struct tree_node *var_decls_node = function_types_node->left;
+        struct tree_node *arg_decls_node = function_types_node->left;
         struct tree_node *return_type_node = function_types_node->right;
 
         struct semantic_type fntype;
         fntype.id = VAL_FUNCTION;
         fntype.arg_types = &env->arg_types;
         fntype.ret_type_index = -1;
-        if (return_type_node) {
-                arg_types_push(&env->arg_types, type_node_to_type(env, return_type_node));
-                fntype.ret_type_index = arg_types_len(&env->arg_types) - 1;
-        }
+        arg_types_push(&env->arg_types, type_node_to_type(env, return_type_node));
+        fntype.ret_type_index = arg_types_len(&env->arg_types) - 1;
         fntype.param_types_start_index = arg_types_len(&env->arg_types);
 
         fntype.rank = 0;
-        for (struct tree_node *var_decl = var_decls_node; var_decl != NULL; var_decl = var_decl->next) {
-                struct tree_node *node = var_decl->left->child;
+        for (struct tree_node *arg_decl = arg_decls_node; arg_decl != NULL; arg_decl = arg_decl->next) {
+                struct tree_node *node = arg_decl->left->child;
                 while (node != NULL) {
-                        arg_types_push(&env->arg_types, type_node_to_type(env, var_decl->right));
+                        arg_types_push(&env->arg_types, type_node_to_type(env, arg_decl->right));
                         fntype.rank++;
                         if (fntype.rank > MAX_ARITY) {
                                 semantic_error(env, node, "max arity exceeded");
@@ -1355,12 +1413,12 @@ disassemble_helper(struct bytecode *code, int indentation)
                 case OP_PUSH_BYTE:
                 case OP_WRITE:
                 case OP_CALL:
+                case OP_RETURN:
                         ip = disassemble_argument(code, ip);
                         break;
                 case OP_READ:
                 case OP_GET_INDEX:
                 case OP_EQUA:
-                case OP_RETURN:
                         ip = disassemble_argument(code, ip);
                         ip = disassemble_argument(code, ip);
                         break;

@@ -71,6 +71,11 @@ static struct tree_node *var_decl_list_until(struct parser *ps, enum token_type 
 static int eat_module_name_error(struct parser *ps, struct token module_name);
 static struct tree_node *wrap_expr_in_statement(struct tree_node *exprnode);
 static struct tree_node *wrap_expr_in_return_statement(struct tree_node *exprnode);
+static struct tree_node *program_decl_stat(struct parser *ps);
+static struct tree_node *module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*body_parsing_fn)(struct parser *ps));
+static struct tree_node *function_or_procedure_decl(struct parser *ps);
+static struct tree_node *function_decl_body_fn(struct parser *ps);
+static struct tree_node *stat_list_until(struct parser *ps, enum token_type type);
 
 struct tree_node *
 parse(char *program, int programlen)
@@ -82,12 +87,102 @@ parse(char *program, int programlen)
         parser.current = next_token(&lexer);
         parser.panic = 0;
         parser.error_detected = 0;
-        struct tree_node *res = stat_list(&parser);
+        struct tree_node *res = program_decl_stat(&parser);
         if (parser.error_detected) {
                 tree_node_free(res);
                 return NULL;
         }
         return res;
+}
+
+static struct tree_node *
+procedure_decl_body_fn(struct parser *ps)
+{
+        struct tree_node *res = stat_list_until(ps, TOKEN_END);
+        struct tree_node **pp = &res->child;
+        while (*pp != NULL)
+                pp = &(*pp)->next;
+        *pp = wrap_expr_in_return_statement(NULL);
+        return res;
+}
+
+static struct tree_node *
+function_decl_body_fn(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_STAT_LIST);
+        res->child = wrap_expr_in_return_statement(expr(ps));
+        return res;
+}
+
+
+static struct tree_node *
+program_decl_stat(struct parser *ps)
+{
+        eat_error(ps, TOKEN_PROGRAM);
+        struct tree_node *res = module_decl_stat(ps, NODE_PROGRAM, &procedure_decl_body_fn);
+        eat_error(ps, TOKEN_DOT);
+        return res;
+}
+
+static struct tree_node *
+module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*body_parsing_fn)(struct parser *ps))
+{
+        /* left: name,
+        right: param (left) and return type (right),
+        child0: fn var decl (left) and  fn module decl (right)
+        child1: body (stat list)
+        */
+        struct tree_node *res = new_tree_node_at_previous(ps, restype);
+        res->left = id_expr(ps);
+        res->right = new_tree_node_at_current(ps, NODE_FUNCTION_TYPES);
+        if (eat(ps, TOKEN_LPAREN)) {
+                res->right->left = var_decl_list_until(ps, TOKEN_RPAREN);
+                eat_error(ps, TOKEN_RPAREN);
+                if (eat(ps, TOKEN_COLON)) {
+                        res->right->right = type_label(ps);
+                }
+        }
+        struct tree_node *var_block = NULL;
+        if (!check(ps, TOKEN_FUNCTION) && !check(ps, TOKEN_PROCEDURE) && !check(ps, TOKEN_BEGIN)) {
+                struct tree_node **vbp = &var_block;
+                do {
+                        *vbp = var_decl(ps);
+                        vbp = &(*vbp)->next;
+                        eat_error(ps, TOKEN_SEMICOLON);
+                } while (!check(ps, TOKEN_FUNCTION) && !check(ps, TOKEN_PROCEDURE) && !check(ps, TOKEN_BEGIN) && !check(ps, TOKEN_EOF));
+        }
+        struct tree_node *module_block = NULL;
+        if (!check(ps, TOKEN_BEGIN)) {
+                struct tree_node **mbp = &module_block;
+                do {
+                        *mbp = function_or_procedure_decl(ps);
+                        mbp = &(*mbp)->next;
+                        eat_error(ps, TOKEN_SEMICOLON);
+                } while (!check(ps, TOKEN_BEGIN) && !check(ps, TOKEN_EOF));
+        }
+        struct tree_node **pp = &res->child;
+        *pp = new_tree_node_at_current(ps, NODE_DECLARATION_BLOCKS);
+        (*pp)->left = var_block;
+        (*pp)->right = module_block;
+        pp = &(*pp)->next;
+        eat_error(ps, TOKEN_BEGIN);
+        eat_module_name_error(ps, res->left->value);
+        *pp = (*body_parsing_fn)(ps);
+        eat_error(ps, TOKEN_END);
+        eat_module_name_error(ps, res->left->value);
+        return res;
+}
+
+static struct tree_node *
+function_or_procedure_decl(struct parser *ps)
+{
+        if (ps->current.type == TOKEN_FUNCTION) {
+                eat_error(ps, TOKEN_FUNCTION);
+                return module_decl_stat(ps, NODE_FUNCTION_DECL, &function_decl_body_fn);
+        } else {
+                eat_error(ps, TOKEN_PROCEDURE);
+                return module_decl_stat(ps, NODE_PROCEDURE_DECL, &procedure_decl_body_fn);
+        }
 }
 
 static struct tree_node *
@@ -145,8 +240,6 @@ stat(struct parser *ps)
                 return writeln_stat(ps);
         case TOKEN_READ:
                 return read_stat(ps);
-        case TOKEN_FUNCTION:
-                return function_decl_stat(ps);
         case TOKEN_EXIT:
                 eat_error(ps, TOKEN_EXIT);
                 return new_tree_node_at_previous(ps, NODE_EXIT_STAT);
@@ -249,29 +342,6 @@ read_stat(struct parser *ps)
                 }
         }
         eat_error(ps, TOKEN_RPAREN);
-        return res;
-}
-
-static struct tree_node *
-function_decl_stat(struct parser *ps)
-{
-        struct tree_node *res = new_tree_node_at_current(ps, NODE_FUNCTION_DECL);
-        eat(ps, TOKEN_FUNCTION);
-        res->left = id_expr(ps);
-        eat_error(ps, TOKEN_LPAREN);
-        res->right = var_decl_list_until(ps, TOKEN_RPAREN);
-        eat_error(ps, TOKEN_RPAREN);
-        eat_error(ps, TOKEN_COLON);
-        struct tree_node *function_types = new_tree_node_at_current(ps, NODE_FUNCTION_TYPES);
-        function_types->left = res->right;
-        function_types->right = type_label(ps);
-        res->right = function_types;
-        eat_error(ps, TOKEN_BEGIN);
-        eat_module_name_error(ps, res->left->value);
-        res->child = new_tree_node_at_current(ps, NODE_STAT_LIST);
-        res->child->child = wrap_expr_in_return_statement(expr(ps));
-        eat_error(ps, TOKEN_END);
-        eat_module_name_error(ps, res->left->value);
         return res;
 }
 
@@ -896,6 +966,7 @@ node_type_string(enum node_type type)
         case NODE_COND_EXPR: return "NODE_COND_EXPR";
         case NODE_CONDITION_AND_EXPRESSION: return "NODE_CONDITION_AND_STATEMENT";
         case NODE_CONDITION_AND_STATEMENT: return "NODE_CONDITION_AND_STATEMENT";
+        case NODE_DECLARATION_BLOCKS: return "NODE_DECLARATION_BLOCKS";
         case NODE_DIVIDE_EXPR: return "NODE_DIVIDE_EXPR";
         case NODE_EQ_EXPR: return "NODE_EQ_EXPR";
         case NODE_EXIT_STAT: return "NODE_EXIT_STAT";

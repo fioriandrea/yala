@@ -303,6 +303,8 @@ semantic_type_equal(struct semantic_type type0, struct semantic_type type1)
 {
         if (type0.id != type1.id)
                 return 0;
+        if (type0.id == VAL_VOID)
+                return 1;
         if (type0.id != VAL_FUNCTION)
                 return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
 
@@ -357,6 +359,18 @@ semantic_type_print(struct semantic_type type)
                 default:
                         break;
         }
+}
+
+struct semantic_type
+semantic_type_void()
+{
+        return semantic_type_scalar(VAL_VOID);
+}
+
+union value
+value_void()
+{
+        return value_from_c_int(0);
 }
 
 int

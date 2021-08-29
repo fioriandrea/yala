@@ -87,6 +87,7 @@ enum value_type {
         VAL_STRING,
         VAL_VECTOR,
         VAL_FUNCTION,
+        VAL_VOID,
 };
 
 #define MAX_VECTOR_DIMENSIONS 50
@@ -150,6 +151,8 @@ void vector_value_set_element_at(union value vec, int i, union value val);
 uint8_t left_byte(uint16_t word);
 uint8_t right_byte(uint16_t word);
 uint16_t join_bytes(uint8_t left, uint8_t right);
+struct semantic_type semantic_type_void();
+union value value_void();
 
 struct lineinfo {
         int line;

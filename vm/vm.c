@@ -341,12 +341,10 @@ vm_run(struct vm *vm)
                 break;
         case OP_RETURN:
                 arg0 = advance_ip(vm); /* function arity */
-                arg1 = advance_ip(vm);
                 val0 = popv(vm);
                 vm->framese--;
                 vm->framese->sp -= arg0 + 1;
-                if (arg1)
-                        pushv(vm, val0);
+                pushv(vm, val0);
                 break;
         case OP_GET_LOCAL_LONG:
                 offset = advance_long_ip(vm);
