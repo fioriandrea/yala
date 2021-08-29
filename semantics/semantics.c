@@ -19,7 +19,6 @@ static void emit_repeat_statement(struct environment *env, struct tree_node *roo
 static void emit_while_statement(struct environment *env, struct tree_node *root);
 static void emit_if_statement(struct environment *env, struct tree_node *root);
 static int emit_declare_local_default(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms, struct local_position *localpos);
-static void emit_function_declaration(struct environment *env, struct tree_node *root);
 static struct semantic_type build_function_semantic_type(struct environment *env, struct tree_node *root);
 static void emit_body(struct environment *env, struct tree_node *statements_node, struct tree_node *return_type_node, int arity);
 static void emit_variable_default(struct environment *env, struct tree_node *node, struct semantic_type type);
@@ -53,7 +52,8 @@ static struct semantic_type type_node_to_type(struct environment *env, struct tr
 static struct semantic_type vector_type_node_to_type(struct environment *env, struct tree_node *node);
 static void semantic_error(struct environment *env, struct tree_node *root, char *fmt, ...);
 static void emit_var_decl(struct environment *env, struct tree_node *root);
-static void emit_module_declaration(struct environment *env, struct tree_node *root);
+static void patch_module_declaration(struct environment *env, struct tree_node *root, int addr);
+static void patch_function_declaration(struct environment *env, struct tree_node *root, int addr);
 static void emit_program_declaration(struct environment *env, struct tree_node *root);
 
 struct bytecode *
@@ -958,9 +958,30 @@ emit_var_decl(struct environment *env, struct tree_node *root)
         }
 }
 
-static void
-emit_module_declaration(struct environment *env, struct tree_node *root)
+static int
+forward_declare_function(struct environment *env, struct tree_node *root)
 {
+        struct tree_node *function_name_node = root->left;
+        struct tree_node *function_types_node = root->right;
+        struct tree_node *arg_decls_node = function_types_node->left;
+        struct tree_node *return_type_node = function_types_node->right;
+        struct tree_node *declaration_blocks_node = root->child;
+        struct tree_node *var_decls_node = declaration_blocks_node->left;
+        struct tree_node *mod_decls_node = declaration_blocks_node->right;
+        struct tree_node *statements_node = root->child->next;
+
+        struct semantic_type fntype = build_function_semantic_type(env, root);
+        declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R, NULL);
+        union value fnval;
+        fnval.function.code = 1;
+        emit_load_constant(env, root, VAL_FUNCTION, fnval);
+        return env->code->constants.len - 1;
+}
+
+static void
+patch_module_declaration(struct environment *env, struct tree_node *root, int addr)
+{
+#define MAX_LOCAL_FUNCTIONS 100
         /* left: name,
         right: param (left) and return type (right),
         child0: fn var decl (left) and  fn module decl (right)
@@ -974,6 +995,9 @@ emit_module_declaration(struct environment *env, struct tree_node *root)
         struct tree_node *var_decls_node = declaration_blocks_node->left;
         struct tree_node *mod_decls_node = declaration_blocks_node->right;
         struct tree_node *statements_node = root->child->next;
+
+        int addresses[MAX_LOCAL_FUNCTIONS];
+        int addrlen = 0;
 
         struct semantic_type fntype = build_function_semantic_type(env, root);
 
@@ -996,8 +1020,21 @@ emit_module_declaration(struct environment *env, struct tree_node *root)
         for (struct tree_node *node = var_decls_node; node != NULL; node = node->next) {
                 emit_var_decl(&subenv, node);
         }
+
         for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
-                emit_function_declaration(&subenv, node);
+                if (addrlen == MAX_LOCAL_FUNCTIONS) {
+                        semantic_error(&subenv, node, "too many local functions (max is %d)", MAX_LOCAL_FUNCTIONS);
+                        break;
+                }
+                addresses[addrlen++] = forward_declare_function(&subenv, node);
+        }
+        {
+                int i = 0;
+                for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
+                        patch_function_declaration(&subenv, node, addresses[i++]);
+                        if (i >= MAX_LOCAL_FUNCTIONS)
+                                break;
+                }
         }
 
         emit_body(&subenv, statements_node, return_type_node, fntype.rank);
@@ -1007,10 +1044,7 @@ emit_module_declaration(struct environment *env, struct tree_node *root)
 
         environment_free(&subenv);
 
-        union value fnval;
-        fnval.function.code = subcode;
-        declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R, NULL);
-        emit_load_constant(env, root, VAL_FUNCTION, fnval);
+        env->code->constants.buffer[addr].function.code = subcode;
 }
 
 static void
@@ -1021,14 +1055,14 @@ emit_program_declaration(struct environment *env, struct tree_node *root)
                 semantic_error(env, root, "cannot have parameters in program (it is not a procedure)");
                 return;
         }
-        emit_module_declaration(env, root);
+        patch_module_declaration(env, root, forward_declare_function(env, root));
         struct tree_node *function_name_node = root->left;
         struct local_position localpos;
         emit_two_bytes(env, root, OP_CALL, 0);
 }
 
 static void
-emit_function_declaration(struct environment *env, struct tree_node *root)
+patch_function_declaration(struct environment *env, struct tree_node *root, int addr)
 {
         struct tree_node *function_types_node = root->right;
         if (function_types_node->right == NULL) {
@@ -1040,7 +1074,7 @@ emit_function_declaration(struct environment *env, struct tree_node *root)
                 semantic_error(env, root, "cannot have local variables in function");
                 return;
         }
-        emit_module_declaration(env, root);
+        patch_module_declaration(env, root, addr);
 }
 
 static void
@@ -1348,7 +1382,6 @@ disassemble_constant(struct bytecode *code, int ip, enum opcode loctype, int ind
                         value_print(v, VAL_STRING, VAL_STRING);
                         break;
                 case OP_LOCF_LONG:
-                        printf("\n");
                         disassemble_helper(v.function.code, indentation + 1);
                         break;
                 default:

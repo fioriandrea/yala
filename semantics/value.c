@@ -152,7 +152,7 @@ value_print(union value v, enum value_type type, enum value_type base)
                 printf("]");
                 return;
         case VAL_FUNCTION:
-                printf("(\n");
+                printf("(");
                 disassemble_helper(v.function.code, 1);
                 printf(")");
                 return;
