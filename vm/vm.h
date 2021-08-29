@@ -10,6 +10,7 @@
 
 struct stack_frame {
         union value *sp;
+        union value *stackbase;
         union value *asp;
         int ip;
         struct bytecode *code;
@@ -23,7 +24,7 @@ struct vm {
 };
 
 void vm_init(struct vm *vm, struct bytecode *code);
-void stack_frame_init(struct stack_frame *sf, union value *sp, union value *asp, struct bytecode *code);
+void stack_frame_init(struct stack_frame *sf, union value *sp, union value *stackbase, union value *asp, struct bytecode *code);
 int vm_run(struct vm *vm);
 
 #endif

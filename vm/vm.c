@@ -23,14 +23,15 @@ void
 vm_init(struct vm *vm, struct bytecode *code)
 {
         vm->framese = vm->framestack;
-        stack_frame_init(vm->framese, vm->stack, vm->framese->asp, code);
+        stack_frame_init(vm->framese, vm->stack, vm->stack, vm->astack, code);
 }
 
 void
-stack_frame_init(struct stack_frame *sf, union value *sp, union value *asp, struct bytecode *code)
+stack_frame_init(struct stack_frame *sf, union value *sp, union value *stackbase, union value *asp, struct bytecode *code)
 {
         sf->ip = 0;
         sf->sp = sp;
+        sf->stackbase = stackbase;
         sf->asp = asp;
         sf->code = code;
 }
@@ -62,7 +63,7 @@ peekv(struct vm *vm, int offset)
 static void
 pusha(struct vm *vm, union value val)
 {
-        *vm->framese->asp++ = val;
+        *(vm->framese->asp++) = val;
 }
 
 static void
@@ -162,8 +163,9 @@ vm_run(struct vm *vm)
         union value val0;
         union value val1;
         enum opcode current;
-        uint8_t arg0, arg1;
-        uint16_t arglong0;
+        uint8_t arg0, arg1, arg2, arg3;
+        uint16_t arglong0, arglong1;
+        uint16_t offset, index;
 
         int indicesbuff[MAX_VECTOR_DIMENSIONS];
         int dimensionsbuff[MAX_VECTOR_DIMENSIONS];
@@ -322,8 +324,16 @@ vm_run(struct vm *vm)
         case OP_CALL:
                 arg0 = advance_ip(vm); /* function arity */
                 val0 = peekv(vm, arg0 + 1);
-                stack_frame_init(vm->framese + 1, vm->framese->sp, vm->framese->asp, val0.function.code);
+                stack_frame_init(vm->framese + 1, vm->framese->sp, vm->framese->sp - arg0 - 1, vm->framese->asp, val0.function.code);
                 vm->framese++;
+                break;
+        case OP_SHIFT_ASTACKENT_TO_BASE:
+                val0 = peekv(vm, 1);
+                for (int i = 0; i < val0.vector.size; i++) {
+                       *(vm->framese[-1].asp + i) = *(val0.vector.astackent + i);
+                }
+                vm->framese->sp[-1].vector.astackent = vm->framese[-1].asp;
+                vm->framese[-1].asp += val0.vector.size;
                 break;
         case OP_RETURN:
                 arg0 = advance_ip(vm); /* function arity */
@@ -337,22 +347,31 @@ vm_run(struct vm *vm)
         case OP_GET_LOCAL_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
-                pushv(vm, vm->stack[arglong0]);
+                arg2 = advance_ip(vm);
+                arg3 = advance_ip(vm);
+                offset = join_bytes(arg0, arg1);
+                index = join_bytes(arg2, arg3);
+                pushv(vm, vm->framese[-offset].stackbase[index]);
                 break;
         case OP_SET_LOCAL_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
-                vm->stack[arglong0] = popv(vm);
+                arg2 = advance_ip(vm);
+                arg3 = advance_ip(vm);
+                offset = join_bytes(arg0, arg1);
+                index = join_bytes(arg2, arg3);
+                vm->framese[-offset].stackbase[index] = popv(vm);
                 break;
         case OP_SET_INDEX_LOCAL_LONG:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
+                arg2 = advance_ip(vm);
+                arg3 = advance_ip(vm);
+                offset = join_bytes(arg0, arg1);
+                index = join_bytes(arg2, arg3);
                 arg0 = advance_ip(vm); /* how many indices */
                 arg1 = advance_ip(vm); /* rank */
-                val0 = vm->stack[arglong0];
+                val0 = vm->framese[-offset].stackbase[index];
 
                 load_indexing_prelude(vm, indicesbuff, arg0, dimensionsbuff, arg1);
 

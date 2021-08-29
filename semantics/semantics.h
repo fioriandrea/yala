@@ -74,6 +74,7 @@ enum opcode {
 
         OP_CALL,
         OP_RETURN,
+        OP_SHIFT_ASTACKENT_TO_BASE,
 
         OP_HALT,
 };
@@ -193,6 +194,11 @@ struct local {
         uint8_t perms;
 };
 
+struct local_position {
+        int index;
+        int offset;
+};
+
 struct break_like {
     int codelen;
     int loopdepth;
@@ -212,6 +218,8 @@ struct environment {
         int loopdepth;
 
         struct arg_types arg_types;
+
+        struct environment *parent;
 };
 
 void emit_statement(struct environment *env, struct tree_node *root);
