@@ -36,40 +36,54 @@ stack_frame_init(struct stack_frame *sf, union value *sp, union value *stackbase
         sf->code = code;
 }
 
+#define VM_SP(vm) (vm->framese->sp)
+#define VM_STACKBASE(vm) (vm->framese->stackbase)
+#define VM_ASP(vm) (vm->framese->asp)
+#define VM_CODE(vm) (vm->framese->code)
+#define VM_IP(vm) (vm->framese->ip)
+
 static uint8_t
 advance_ip(struct vm *vm)
 {
-        return bytecode_byte_at(vm->framese->code, vm->framese->ip++);
+        return bytecode_byte_at(VM_CODE(vm), VM_IP(vm)++);
+}
+
+static uint16_t
+advance_long_ip(struct vm *vm)
+{
+        uint8_t left = advance_ip(vm);
+        uint8_t right = advance_ip(vm);
+        return join_bytes(left, right);
 }
 
 static void
 pushv(struct vm *vm, union value val)
 {
-        *vm->framese->sp++ = val;
+        *(VM_SP(vm)++) = val;
 }
 
 static union value
 popv(struct vm *vm)
 {
-        return *--vm->framese->sp;
+        return *(--VM_SP(vm));
 }
 
 static union value
 peekv(struct vm *vm, int offset)
 {
-        return *(vm->framese->sp - offset);
+        return *(VM_SP(vm) - offset);
 }
 
 static void
 pusha(struct vm *vm, union value val)
 {
-        *(vm->framese->asp++) = val;
+        *(VM_ASP(vm)++) = val;
 }
 
 static void
 popa(struct vm *vm, int size) {
         for (int i = 0; i < size; i++) {
-                vm->framese->asp--;
+                VM_ASP(vm)--;
         }
 }
 
@@ -163,8 +177,8 @@ vm_run(struct vm *vm)
         union value val0;
         union value val1;
         enum opcode current;
-        uint8_t arg0, arg1, arg2, arg3;
-        uint16_t arglong0, arglong1;
+        uint8_t arg0, arg1;
+        uint16_t arglong0;
         uint16_t offset, index;
 
         int indicesbuff[MAX_VECTOR_DIMENSIONS];
@@ -178,9 +192,7 @@ vm_run(struct vm *vm)
         case OP_LOCS_LONG:
         case OP_LOCV_LONG:
         case OP_LOCF_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
+                arglong0 = advance_long_ip(vm);
                 pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
                 break;
         case OP_PUSH_BYTE:
@@ -259,24 +271,18 @@ vm_run(struct vm *vm)
                 pushv(vm, value_from_c_string(""));
                 break;
         case OP_SKIP_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
-                vm->framese->ip += arglong0;
+                arglong0 = advance_long_ip(vm);
+                VM_IP(vm) += arglong0;
                 break;
         case OP_SKIP_BACK_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
-                vm->framese->ip -= arglong0;
+                arglong0 = advance_long_ip(vm);
+                VM_IP(vm) -= arglong0;
                 break;
         case OP_SKIPF_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
+                arglong0 = advance_long_ip(vm);
                 val0 = peekv(vm, 1);
                 if (!val0.boolean) {
-                        vm->framese->ip += arglong0;
+                        VM_IP(vm) += arglong0;
                 }
                 break;
         case OP_POPV:
@@ -291,10 +297,8 @@ vm_run(struct vm *vm)
                 pusha(vm, val0);
                 break;
         case OP_LOC_ALINK_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arglong0 = join_bytes(arg0, arg1);
-                vm->framese->code->constants.buffer[arglong0].vector.astackent = vm->framese->asp - vm->framese->code->constants.buffer[arglong0].vector.size;
+                arglong0 = advance_long_ip(vm);
+                VM_CODE(vm)->constants.buffer[arglong0].vector.astackent = VM_ASP(vm) - VM_CODE(vm)->constants.buffer[arglong0].vector.size;
                 pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
                 break;
         case OP_NEWLINE:
@@ -302,7 +306,7 @@ vm_run(struct vm *vm)
                 break;
         case OP_WRITE: {
                 arg0 = advance_ip(vm);
-                for (union value *p = vm->framese->sp - arg0 * 3; p < vm->framese->sp;) {
+                for (union value *p = VM_SP(vm) - arg0 * 3; p < VM_SP(vm);) {
                         union value val = *p++;
                         enum value_type type = (p++)->integer;
                         enum value_type base = (p++)->integer;
@@ -324,7 +328,7 @@ vm_run(struct vm *vm)
         case OP_CALL:
                 arg0 = advance_ip(vm); /* function arity */
                 val0 = peekv(vm, arg0 + 1);
-                stack_frame_init(vm->framese + 1, vm->framese->sp, vm->framese->sp - arg0 - 1, vm->framese->asp, val0.function.code);
+                stack_frame_init(vm->framese + 1, VM_SP(vm), VM_SP(vm) - arg0 - 1, VM_ASP(vm), val0.function.code);
                 vm->framese++;
                 break;
         case OP_SHIFT_ASTACKENT_TO_BASE:
@@ -345,30 +349,18 @@ vm_run(struct vm *vm)
                         pushv(vm, val0);
                 break;
         case OP_GET_LOCAL_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arg2 = advance_ip(vm);
-                arg3 = advance_ip(vm);
-                offset = join_bytes(arg0, arg1);
-                index = join_bytes(arg2, arg3);
+                offset = advance_long_ip(vm);
+                index = advance_long_ip(vm);
                 pushv(vm, vm->framese[-offset].stackbase[index]);
                 break;
         case OP_SET_LOCAL_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arg2 = advance_ip(vm);
-                arg3 = advance_ip(vm);
-                offset = join_bytes(arg0, arg1);
-                index = join_bytes(arg2, arg3);
+                offset = advance_long_ip(vm);
+                index = advance_long_ip(vm);
                 vm->framese[-offset].stackbase[index] = popv(vm);
                 break;
         case OP_SET_INDEX_LOCAL_LONG:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-                arg2 = advance_ip(vm);
-                arg3 = advance_ip(vm);
-                offset = join_bytes(arg0, arg1);
-                index = join_bytes(arg2, arg3);
+                offset = advance_long_ip(vm);
+                index = advance_long_ip(vm);
                 arg0 = advance_ip(vm); /* how many indices */
                 arg1 = advance_ip(vm); /* rank */
                 val0 = vm->framese[-offset].stackbase[index];
@@ -421,7 +413,7 @@ vm_run(struct vm *vm)
                         }
                         union value result_value;
                         result_value.vector.size = count;
-                        result_value.vector.astackent = vm->framese->asp - count;
+                        result_value.vector.astackent = VM_ASP(vm) - count;
                         pushv(vm, result_value);
                 }
                 break;
