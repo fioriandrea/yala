@@ -135,7 +135,7 @@ module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*
         struct tree_node *res = new_tree_node_at_previous(ps, restype);
         res->left = id_expr(ps);
         res->right = new_tree_node_at_current(ps, NODE_FUNCTION_TYPES);
-        if (eat(ps, TOKEN_LPAREN)) {
+        if (eat(ps, TOKEN_LPAREN) && !ps->error_detected) {
                 res->right->left = var_decl_list_until(ps, TOKEN_RPAREN);
                 eat_error(ps, TOKEN_RPAREN);
                 if (eat(ps, TOKEN_COLON)) {
@@ -143,7 +143,7 @@ module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*
                 }
         }
         struct tree_node *var_block = NULL;
-        if (!check(ps, TOKEN_FUNCTION) && !check(ps, TOKEN_PROCEDURE) && !check(ps, TOKEN_BEGIN)) {
+        if (!ps->error_detected && !check(ps, TOKEN_FUNCTION) && !check(ps, TOKEN_PROCEDURE) && !check(ps, TOKEN_BEGIN)) {
                 struct tree_node **vbp = &var_block;
                 do {
                         *vbp = var_decl(ps);
@@ -152,7 +152,7 @@ module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*
                 } while (!check(ps, TOKEN_FUNCTION) && !check(ps, TOKEN_PROCEDURE) && !check(ps, TOKEN_BEGIN) && !check(ps, TOKEN_EOF));
         }
         struct tree_node *module_block = NULL;
-        if (!check(ps, TOKEN_BEGIN)) {
+        if (!ps->error_detected && !check(ps, TOKEN_BEGIN)) {
                 struct tree_node **mbp = &module_block;
                 do {
                         *mbp = function_or_procedure_decl(ps);
