@@ -24,8 +24,8 @@
         int name##_len(struct name *list); \
         void name##_free(struct name *list);
 
-
-enum opcode {
+enum opcode
+{
         OP_LOCI_LONG, /* constants */
         OP_LOCB_LONG,
         OP_LOCS_LONG,
@@ -77,6 +77,10 @@ enum opcode {
         OP_RETURN,
         OP_SHIFT_ASTACKENT_TO_BASE,
 
+        OP_PUSH_TO_ARGSTACK,
+        OP_PUSH_FROM_PEEK_ARGSTACK,
+        OP_POPARG,
+
         OP_HALT,
 };
 
@@ -93,6 +97,10 @@ enum value_type {
 
 #define MAX_VECTOR_DIMENSIONS 50
 
+#define ARG_MOD_IN (1 << 0)
+#define ARG_MOD_OUT (1 << 1)
+#define ARG_MOD_INOUT (ARG_MOD_IN | ARG_MOD_OUT)
+
 struct semantic_type {
         enum value_type id;
         enum value_type base;
@@ -102,6 +110,7 @@ struct semantic_type {
         int param_types_start_index;
         int ret_type_index;
         struct arg_types *arg_types;
+        int modifier;
 };
 
 LIST_DECLARE(arg_types, struct semantic_type)

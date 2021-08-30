@@ -21,6 +21,10 @@ struct vm {
         union value stack[STACK_MAX];
         union value astack[STACK_MAX];
         struct stack_frame framestack[STACK_MAX];
+        union value argstack[MAX_ARITY];
+        union value argastack[STACK_MAX];
+        union value *argsp;
+        union value *argasp;
 };
 
 void vm_init(struct vm *vm, struct bytecode *code);
