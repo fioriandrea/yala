@@ -56,6 +56,7 @@ static void patch_module_declaration(struct environment *env, struct tree_node *
 static void patch_function_declaration(struct environment *env, struct tree_node *root, int addr);
 static void patch_procedure_declaration(struct environment *env, struct tree_node *root, int addr);
 static void emit_program_declaration(struct environment *env, struct tree_node *root);
+static struct semantic_type compute_lhs_type(struct environment *env, struct tree_node *lhs);
 
 struct bytecode *
 generate_bytecode(struct tree_node *parsetree)
@@ -990,9 +991,6 @@ build_function_semantic_type(struct environment *env, struct tree_node *root)
                                 case TOKEN_OUT:
                                         mod_arg_type.modifier = ARG_MOD_OUT;
                                         break;
-                                default:
-                                        mod_arg_type.modifier = ARG_MOD_IN;
-                                        break;
                                 }
                         }
                         arg_types_push(&env->arg_types, mod_arg_type);
@@ -1215,6 +1213,15 @@ emit_module_call(struct environment *env, struct tree_node *root)
                         }
                         lhsides[argcount - 1] = expr_node;
                 }
+                if (!(arg_type.modifier & ARG_MOD_IN)) {
+                        struct tree_node *var = lhs_variable(expr_node);
+                        struct local_position localpos;
+                        if (!environment_local_search_check_write(env, var->value, var, &localpos))
+                                break;
+                        emit_variable_default(env, expr_node, compute_lhs_type(env, expr_node));
+                        struct semantic_type lhs_type = emit_op_set_local_lhs_type(env, localpos, expr_node);
+                        emit_op_set_local(env, expr_node, localpos, lhs_type);
+                }
                 struct semantic_type expr_type = emit_expression(env, expr_node);
                 if (!semantic_type_equal(semantic_type_argument_at(called_type, argcount - 1), expr_type)) {
                         semantic_error(env, expr_node, "mismatching argument type");
@@ -1240,6 +1247,27 @@ emit_module_call(struct environment *env, struct tree_node *root)
                 emit_two_bytes(env, lhsides[i], OP_POPARG, arg_type.id == VAL_VECTOR);
         }
         return semantic_type_return_value(called_type);
+}
+
+static struct semantic_type
+compute_lhs_type(struct environment *env, struct tree_node *lhs)
+{
+        struct semantic_type res;
+        struct tree_node *var = lhs_variable(lhs);
+        struct local_position localpos;
+        if (!environment_local_search_check_write(env, var->value, var, &localpos))
+                return res;
+        struct local loc = environment_local_get(env, localpos);
+        if (loc.type.id == VAL_VECTOR) {
+                int index_count = 0;
+                for (struct tree_node *node = lhs->right; node != NULL; node = node->next) {
+                        index_count++;
+                }
+                res = compute_indexed_semantic_type(index_count, loc.type);
+        } else {
+                res = loc.type;
+        }
+        return res;
 }
 
 static struct semantic_type
