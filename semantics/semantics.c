@@ -54,6 +54,7 @@ static void semantic_error(struct environment *env, struct tree_node *root, char
 static void emit_var_decl(struct environment *env, struct tree_node *root);
 static void patch_module_declaration(struct environment *env, struct tree_node *root, int addr);
 static void patch_function_declaration(struct environment *env, struct tree_node *root, int addr);
+static void patch_procedure_declaration(struct environment *env, struct tree_node *root, int addr);
 static void emit_program_declaration(struct environment *env, struct tree_node *root);
 
 struct bytecode *
@@ -1075,7 +1076,14 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
         {
                 int i = 0;
                 for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
-                        patch_function_declaration(&subenv, node, addresses[i++]);
+                        switch (node->type) {
+                                case NODE_PROCEDURE_DECL:
+                                        patch_procedure_declaration(&subenv, node, addresses[i++]);
+                                        break;
+                                case NODE_FUNCTION_DECL:
+                                        patch_function_declaration(&subenv, node, addresses[i++]);
+                                        break;
+                        }
                         if (i >= MAX_LOCAL_FUNCTIONS)
                                 break;
                 }
@@ -1114,6 +1122,32 @@ patch_function_declaration(struct environment *env, struct tree_node *root, int 
         struct tree_node *declaration_blocks_node = root->child;
         if (declaration_blocks_node->left != NULL || declaration_blocks_node->right != NULL) {
                 semantic_error(env, root, "cannot have local variables in function");
+                return;
+        }
+        struct tree_node *arg_decls_node = function_types_node->left;
+
+        for (struct tree_node *arg_decl = arg_decls_node; arg_decl != NULL; arg_decl = arg_decl->next) {
+                struct tree_node *node = arg_decl->left->child;
+                while (node != NULL) {
+                        struct tree_node *mod_node = node->child;
+                        if (mod_node != NULL) {
+                                semantic_error(env, node, "cannot use modifiers in function");
+                                return;
+                        }
+                        node = node->next;
+                }
+        }
+
+        patch_module_declaration(env, root, addr);
+}
+
+static void
+patch_procedure_declaration(struct environment *env, struct tree_node *root, int addr)
+{
+
+        struct tree_node *function_types_node = root->right;
+        if (function_types_node->right != NULL) {
+                semantic_error(env, root, "unexpected return type for procedure");
                 return;
         }
         patch_module_declaration(env, root, addr);
@@ -1199,9 +1233,9 @@ emit_module_call(struct environment *env, struct tree_node *root)
                 struct local_position localpos;
                 if (!environment_local_search_check_write(env, var->value, var, &localpos))
                         break;
+                emit_byte(env, lhsides[i], OP_PUSH_FROM_PEEK_ARGSTACK);
                 struct semantic_type lhs_type = emit_op_set_local_lhs_type(env, localpos, lhsides[i]);
                 struct semantic_type arg_type = semantic_type_argument_at(called_type, i);
-                emit_byte(env, lhsides[i], OP_PUSH_FROM_PEEK_ARGSTACK);
                 emit_op_set_local(env, lhsides[i], localpos, lhs_type);
                 emit_two_bytes(env, lhsides[i], OP_POPARG, arg_type.id == VAL_VECTOR);
         }
