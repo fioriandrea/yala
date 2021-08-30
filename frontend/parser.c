@@ -66,8 +66,6 @@ struct tree_node *call_expr(struct parser *ps, struct tree_node *called);
 static struct tree_node *expr_list_until(struct parser *ps, enum token_type rightdelim);
 static struct tree_node *expr_list(struct parser *ps);
 static struct tree_node *var_decl(struct parser *ps);
-static struct tree_node *var_decl_list(struct parser *ps);
-static struct tree_node *var_decl_list_until(struct parser *ps, enum token_type rightdelim);
 static int eat_module_name_error(struct parser *ps, struct token module_name);
 static struct tree_node *wrap_expr_in_statement(struct tree_node *exprnode);
 static struct tree_node *wrap_expr_in_return_statement(struct parser *ps, struct tree_node *exprnode);
@@ -76,6 +74,11 @@ static struct tree_node *module_decl_stat(struct parser *ps, enum node_type rest
 static struct tree_node *function_or_procedure_decl(struct parser *ps);
 static struct tree_node *function_decl_body_fn(struct parser *ps);
 static struct tree_node *stat_list_until(struct parser *ps, enum token_type type);
+static struct tree_node *var_decl_qualified(struct parser *ps);
+static struct tree_node *id_list_qualified(struct parser *ps);
+static struct tree_node *id_qualified(struct parser *ps);
+static struct tree_node *var_decl_qualified_list(struct parser *ps);
+static struct tree_node *var_decl_qualified_list_until(struct parser *ps, enum token_type rightdelim);
 
 struct tree_node *
 parse(char *program, int programlen)
@@ -136,7 +139,7 @@ module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*
         res->left = id_expr(ps);
         res->right = new_tree_node_at_current(ps, NODE_FUNCTION_TYPES);
         if (eat(ps, TOKEN_LPAREN) && !ps->error_detected) {
-                res->right->left = var_decl_list_until(ps, TOKEN_RPAREN);
+                res->right->left = var_decl_qualified_list_until(ps, TOKEN_RPAREN);
                 eat_error(ps, TOKEN_RPAREN);
                 if (eat(ps, TOKEN_COLON)) {
                         res->right->right = type_label(ps);
@@ -365,26 +368,26 @@ var_decl(struct parser *ps)
 }
 
 static struct tree_node *
-var_decl_list(struct parser *ps)
+var_decl_qualified_list(struct parser *ps)
 {
         struct tree_node *res = NULL;
         struct tree_node **pp = &res;
 
-        *pp = var_decl(ps);
+        *pp = var_decl_qualified(ps);
         pp = &(*pp)->next;
         while (eat(ps, TOKEN_COMMA)) {
-                *pp = var_decl(ps);
+                *pp = var_decl_qualified(ps);
                 pp = &(*pp)->next;
         }
         return res;
 }
 
 static struct tree_node *
-var_decl_list_until(struct parser *ps, enum token_type rightdelim)
+var_decl_qualified_list_until(struct parser *ps, enum token_type rightdelim)
 {
         if (check(ps, rightdelim))
                 return NULL;
-        return var_decl_list(ps);
+        return var_decl_qualified_list(ps);
 }
 
 static int
@@ -528,6 +531,44 @@ type_label(struct parser *ps)
                 parse_error(ps, ps->previous, "unrecognized type");
                 return NULL;
         }
+}
+
+static struct tree_node *
+var_decl_qualified(struct parser *ps)
+{
+        struct tree_node *ids = id_list_qualified(ps);
+        eat_error(ps, TOKEN_COLON);
+        struct tree_node *res = new_tree_node_at_previous(ps, NODE_VAR_DECL);
+        res->left = ids;
+        res->right = type_label(ps);
+        return res;
+}
+
+static struct tree_node *
+id_list_qualified(struct parser *ps)
+{
+        struct tree_node *res = new_tree_node_at_current(ps, NODE_ID_LIST);
+        struct tree_node **pp = &res->child;
+        *pp = id_qualified(ps);
+        pp = &(*pp)->next;
+        while (eat(ps, TOKEN_COMMA)) {
+                *pp = id_qualified(ps);
+                pp = &(*pp)->next;
+        }
+        return res;
+}
+
+static struct tree_node *
+id_qualified(struct parser *ps)
+{
+        struct tree_node *res = NULL;
+        struct tree_node *qualifier = NULL;
+        if (eat(ps, TOKEN_INOUT) || eat(ps, TOKEN_OUT)) {
+                qualifier = new_tree_node_at_previous(ps, NODE_QUALIFIER);
+        }
+        res = id_expr(ps);
+        res->child = qualifier;
+        return res;
 }
 
 static struct tree_node *
@@ -1002,6 +1043,7 @@ node_type_string(enum node_type type)
         case NODE_PLUS_EXPR: return "NODE_PLUS_EXPR";
         case NODE_PROCEDURE_DECL: return "NODE_PROCEDURE_DECL";
         case NODE_PROGRAM: return "NODE_PROGRAM";
+        case NODE_QUALIFIER: return "NODE_QUALIFIER";
         case NODE_READ_STAT: return "NODE_READ_STAT";
         case NODE_REPEAT_STAT: return "NODE_REPEAT_STAT";
         case NODE_RETURN_STAT: return "NODE_RETURN_STAT";

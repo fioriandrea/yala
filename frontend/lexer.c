@@ -154,7 +154,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                 {"integer", 7, TOKEN_INTEGER},
                 {"of", 2, TOKEN_OF},
                 {"or", 2, TOKEN_OR},
-                {"out", TOKEN_OUT},
+                {"out", 3, TOKEN_OUT},
                 {"procedure", 9, TOKEN_PROCEDURE},
                 {"program", 7, TOKEN_PROGRAM},
                 {"read", 4, TOKEN_READ},
