@@ -70,7 +70,7 @@ static struct tree_node *var_decl_list(struct parser *ps);
 static struct tree_node *var_decl_list_until(struct parser *ps, enum token_type rightdelim);
 static int eat_module_name_error(struct parser *ps, struct token module_name);
 static struct tree_node *wrap_expr_in_statement(struct tree_node *exprnode);
-static struct tree_node *wrap_expr_in_return_statement(struct tree_node *exprnode);
+static struct tree_node *wrap_expr_in_return_statement(struct parser *ps, struct tree_node *exprnode);
 static struct tree_node *program_decl_stat(struct parser *ps);
 static struct tree_node *module_decl_stat(struct parser *ps, enum node_type restype, struct tree_node *(*body_parsing_fn)(struct parser *ps));
 static struct tree_node *function_or_procedure_decl(struct parser *ps);
@@ -102,7 +102,7 @@ procedure_decl_body_fn(struct parser *ps)
         struct tree_node **pp = &res->child;
         while (*pp != NULL)
                 pp = &(*pp)->next;
-        *pp = wrap_expr_in_return_statement(NULL);
+        *pp = wrap_expr_in_return_statement(ps, NULL);
         return res;
 }
 
@@ -110,7 +110,7 @@ static struct tree_node *
 function_decl_body_fn(struct parser *ps)
 {
         struct tree_node *res = new_tree_node_at_current(ps, NODE_STAT_LIST);
-        res->child = wrap_expr_in_return_statement(expr(ps));
+        res->child = wrap_expr_in_return_statement(ps, expr(ps));
         return res;
 }
 
@@ -404,12 +404,14 @@ wrap_expr_in_statement(struct tree_node *exprnode)
 }
 
 static struct tree_node *
-wrap_expr_in_return_statement(struct tree_node *exprnode)
+wrap_expr_in_return_statement(struct parser *ps, struct tree_node *exprnode)
 {
         struct tree_node *node = new_tree_node(NODE_RETURN_STAT);
         node->child = exprnode;
         if (node->child)
                 node->value = node->child->value;
+        else
+                node->value = ps->current;
         return node;
 }
 

@@ -1375,7 +1375,11 @@ disassemble_constant(struct bytecode *code, int ip, enum opcode loctype, int ind
                 case OP_LOCS_LONG:
                         value_print(v, VAL_STRING, VAL_STRING);
                         break;
+                case OP_LOCVO_LONG:
+                        value_print(v, VAL_VOID, VAL_VOID);
+                        break;
                 case OP_LOCF_LONG:
+                        printf("\n");
                         disassemble_helper(v.function.code, indentation + 1);
                         break;
                 default:
@@ -1419,6 +1423,7 @@ disassemble_helper(struct bytecode *code, int indentation)
                 case OP_LOCB_LONG:
                 case OP_LOCS_LONG:
                 case OP_LOCV_LONG:
+                case OP_LOCVO_LONG:
                 case OP_LOC_ALINK_LONG:
                 case OP_LOCF_LONG:
                         ip = disassemble_constant(code, ip, instruction, indentation);
