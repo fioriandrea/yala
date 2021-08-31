@@ -59,6 +59,8 @@ static void emit_program_declaration(struct environment *env, struct tree_node *
 static struct semantic_type compute_lhs_type(struct environment *env, struct tree_node *lhs);
 static void emit_set_local(struct environment *env, struct tree_node *lhs, struct local_position localpos);
 static struct semantic_type emit_vector_variable_copy(struct environment *env, struct tree_node *varnode, struct local_position localpos);
+static struct semantic_type emit_called_expression(struct environment *env, struct tree_node *root);
+static struct semantic_type emit_id_expr(struct environment *env, struct tree_node *root, int array_by_ref);
 
 struct bytecode *
 generate_bytecode(struct tree_node *parsetree)
@@ -177,7 +179,6 @@ emit_expression(struct environment *env, struct tree_node *root)
         struct semantic_type lefttype, righttype;
         struct semantic_type inttype, booltype, strtype;
         struct bytecode *code = env->code;
-        struct local_position localpos;
         int codelen;
         inttype = semantic_type_scalar(VAL_INTEGER);
         booltype = semantic_type_scalar(VAL_BOOLEAN);
@@ -325,15 +326,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_VECTOR_CONST:
                 return emit_vector_constant(env, root, 0);
         case NODE_ID:
-                if (!environment_local_search(env, root->value, &localpos)) {
-                        semantic_error(env, root, "undefined variable");
-                        break;
-                }
-                emit_op_local_long(env, root, OP_GET_LOCAL_LONG, localpos);
-                if (environment_local_get(env, localpos).type.id == VAL_VECTOR)
-                        return emit_vector_variable_copy(env, root, localpos); 
-                else
-                        return environment_local_get(env, localpos).type;
+                return emit_id_expr(env, root, 1);
         case NODE_INDEXING:
                 return emit_indexing_expression(env, root);
         case NODE_MODULE_CALL:
@@ -342,6 +335,32 @@ emit_expression(struct environment *env, struct tree_node *root)
                 semantic_error(env, root, "semantic analysis for node not implemented (%s)", node_type_string(root->type));
         }
         return inttype;
+}
+
+static struct semantic_type
+emit_called_expression(struct environment *env, struct tree_node *root)
+{
+        if (root->type != NODE_ID) {
+                return emit_expression(env, root);
+        }
+        return emit_id_expr(env, root, 0);
+
+}
+
+static struct semantic_type
+emit_id_expr(struct environment *env, struct tree_node *root, int array_by_ref)
+{
+        struct local_position localpos;
+        struct semantic_type toret = semantic_type_scalar(VAL_INTEGER);
+        if (!environment_local_search(env, root->value, &localpos)) {
+                semantic_error(env, root, "undefined variable");
+                return toret;
+        }
+        emit_op_local_long(env, root, OP_GET_LOCAL_LONG, localpos);
+        if (environment_local_get(env, localpos).type.id == VAL_VECTOR && !array_by_ref)
+                return emit_vector_variable_copy(env, root, localpos); 
+        else
+                return environment_local_get(env, localpos).type;
 }
 
 static void
@@ -1260,7 +1279,7 @@ emit_module_call(struct environment *env, struct tree_node *root)
                         emit_variable_default(env, expr_node, compute_lhs_type(env, expr_node));
                         emit_set_local(env, expr_node, localpos);
                 }
-                struct semantic_type expr_type = emit_expression(env, expr_node);
+                struct semantic_type expr_type = emit_called_expression(env, expr_node);
                 if (!semantic_type_equal(semantic_type_argument_at(called_type, argcount - 1), expr_type)) {
                         semantic_error(env, expr_node, "mismatching argument type");
                         return dummy;
