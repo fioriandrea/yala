@@ -9,6 +9,7 @@
 static void
 runtime_error(struct vm *vm, char *fmt, ...)
 {
+        vm->error = 1;
         va_list args;
         va_start(args, fmt);
         struct lineinfo linfo = linelist_at(&vm->framese->code->lines, vm->framese->ip);
@@ -26,6 +27,7 @@ vm_init(struct vm *vm, struct bytecode *code)
         vm->argsp = vm->argstack;
         vm->argasp = vm->astack + STACK_MAX;
         stack_frame_init(vm->framese, vm->stack, vm->stack, vm->astack, code);
+        vm->error = 0;
 }
 
 void
@@ -61,6 +63,10 @@ advance_long_ip(struct vm *vm)
 static void
 pushv(struct vm *vm, union value val)
 {
+        if (VM_SP(vm) - (vm->stack + STACK_MAX) >= 0) {
+                runtime_error(vm, "stack overflow");
+                return;
+        }
         *(VM_SP(vm)++) = val;
 }
 
@@ -79,6 +85,10 @@ peekv(struct vm *vm, int offset)
 static void
 pusha(struct vm *vm, union value val)
 {
+        if (VM_ASP(vm) - (vm->astack + STACK_MAX) >= 0) {
+                runtime_error(vm, "stack overflow");
+                return;
+        }
         *(VM_ASP(vm)++) = val;
 }
 
@@ -190,6 +200,8 @@ vm_run(struct vm *vm)
         int dimensionsbuff[MAX_VECTOR_DIMENSIONS];
 
         for (;;) {
+        if (vm->error)
+                return vm->error;
         current = advance_ip(vm);
         switch (current) {
         case OP_LOCI_LONG:
@@ -446,7 +458,7 @@ vm_run(struct vm *vm)
                 return 0;
         default:
                 runtime_error(vm, "NOT IMPLEMENTED: %s\n", opcodestring(current));
-                return 0;
+                return 1;
         }
         }
 }
