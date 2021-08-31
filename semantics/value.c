@@ -82,6 +82,7 @@ LIST_DEFINE(valuelist, union value)
 LIST_DEFINE(locals, struct local)
 LIST_DEFINE(break_likes, struct break_like)
 LIST_DEFINE(arg_types, struct semantic_type)
+LIST_DEFINE(intlist, int)
 
 void
 bytecode_init(struct bytecode *code)

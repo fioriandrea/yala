@@ -1079,12 +1079,6 @@ forward_declare_function(struct environment *env, struct tree_node *root)
 static void
 patch_module_declaration(struct environment *env, struct tree_node *root, int addr)
 {
-#define MAX_LOCAL_FUNCTIONS 100
-        /* left: name,
-        right: param (left) and return type (right),
-        child0: fn var decl (left) and  fn module decl (right)
-        child1: body (stat list)
-        */
         struct tree_node *function_name_node = root->left;
         struct tree_node *function_types_node = root->right;
         struct tree_node *arg_decls_node = function_types_node->left;
@@ -1094,8 +1088,8 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
         struct tree_node *mod_decls_node = declaration_blocks_node->right;
         struct tree_node *statements_node = root->child->next;
 
-        int addresses[MAX_LOCAL_FUNCTIONS];
-        int addrlen = 0;
+        struct intlist addresses;
+        intlist_init(&addresses);
 
         struct semantic_type fntype = build_function_semantic_type(env, root);
 
@@ -1120,28 +1114,22 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
         }
 
         for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
-                if (addrlen == MAX_LOCAL_FUNCTIONS) {
-                        semantic_error(&subenv, node, "too many local functions (max is %d)", MAX_LOCAL_FUNCTIONS);
-                        break;
-                }
-                addresses[addrlen++] = forward_declare_function(&subenv, node);
+                intlist_push(&addresses, forward_declare_function(&subenv, node));
         }
         {
                 int i = 0;
                 for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
                         switch (node->type) {
                                 case NODE_PROCEDURE_DECL:
-                                        patch_procedure_declaration(&subenv, node, addresses[i++]);
+                                        patch_procedure_declaration(&subenv, node, intlist_at(&addresses, i++));
                                         break;
                                 case NODE_FUNCTION_DECL:
-                                        patch_function_declaration(&subenv, node, addresses[i++]);
+                                        patch_function_declaration(&subenv, node, intlist_at(&addresses, i++));
                                         break;
                                 default:
                                         exit(100);
                                         break;
                         }
-                        if (i >= MAX_LOCAL_FUNCTIONS)
-                                break;
                 }
         }
 
@@ -1153,6 +1141,8 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
         environment_free(&subenv);
 
         env->code->constants.buffer[addr].function.code = subcode;
+
+        intlist_free(&addresses);
 }
 
 static void

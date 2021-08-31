@@ -174,6 +174,7 @@ struct lineinfo {
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
 LIST_DECLARE(valuelist, union value)
+LIST_DECLARE(intlist, int)
 
 struct bytecode {
         struct bytes code;
