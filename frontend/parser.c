@@ -27,12 +27,10 @@ static int check_error(struct parser *ps, enum token_type type);
 static int eat_error(struct parser *ps, enum token_type type);
 static void synchronize(struct parser *ps);
 
-static struct tree_node *stat_list(struct parser *ps);
 static struct tree_node *stat(struct parser *ps);
 static struct tree_node *write_stat(struct parser *ps);
 static struct tree_node *writeln_stat(struct parser *ps);
 static struct tree_node *read_stat(struct parser *ps);
-static struct tree_node *function_decl_stat(struct parser *ps);
 static int is_node_lhs(struct tree_node *lhs);
 static struct tree_node *if_stat(struct parser *ps);
 static struct tree_node *while_stat(struct parser *ps);
@@ -63,7 +61,6 @@ struct tree_node *id_expr(struct parser *ps);
 static struct tree_node *dispatch_id_expr(struct parser *ps);
 struct tree_node *indexing_expr(struct parser *ps, struct tree_node *indexed);
 struct tree_node *call_expr(struct parser *ps, struct tree_node *called);
-static struct tree_node *expr_list_until(struct parser *ps, enum token_type rightdelim);
 static struct tree_node *expr_list(struct parser *ps);
 static struct tree_node *var_decl(struct parser *ps);
 static int eat_module_name_error(struct parser *ps, struct token module_name);
@@ -214,13 +211,6 @@ stat_list_until(struct parser *ps, enum token_type type)
 {
         enum token_type types[] = {type};
         return stat_list_until_list(ps, 1, types);
-}
-
-static struct tree_node *
-stat_list(struct parser *ps)
-{
-        /* TODO to remove */
-        return stat_list_until_list(ps, 0, NULL);
 }
 
 static struct tree_node *
@@ -814,16 +804,6 @@ call_expr(struct parser *ps, struct tree_node *called)
 }
 
 static struct tree_node *
-expr_list_until(struct parser *ps, enum token_type rightdelim)
-{
-        struct tree_node *res = NULL;
-        if (!check(ps, rightdelim)) {
-                res = expr_list(ps);
-        }
-        return res;
-}
-
-static struct tree_node *
 expr_list(struct parser *ps)
 {
         struct tree_node *res = expr(ps);
@@ -1060,7 +1040,8 @@ node_type_string(enum node_type type)
         case NODE_WRITELN_STAT: return "NODE_WRITELN_STAT";
         case NODE_WRITE_STAT: return "NODE_WRITE_STAT";
         }
-        return "unreachable return in node_type_string";
+        exit(100);
+        return "";
 }
 
 struct tree_node *

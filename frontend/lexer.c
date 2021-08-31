@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include <ctype.h>
 
 #include "frontend.h"
@@ -294,7 +295,8 @@ token_type_string(enum token_type type)
         case TOKEN_WRITELN: return "TOKEN_WRITELN";
         case TOKEN_WRITE: return "TOKEN_WRITE";
         }
-        return "unreachable return in token_type_string";
+        exit(100);
+        return "";
 }
 
 int

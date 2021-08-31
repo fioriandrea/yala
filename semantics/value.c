@@ -274,6 +274,10 @@ values_equal(union value val0, union value val1, enum value_type type, enum valu
                                 return 0;
                 }
                 return 1;
+        case VAL_VOID:
+                return 1;
+        case VAL_FUNCTION:
+                return 0;
         }
         return 0;
 }
@@ -297,7 +301,7 @@ compare_values(union value val0, union value val1, enum value_type type)
                 case VAL_INTEGER:
                         return val0.integer - val1.integer;
                 default:
-                        printf("unreachable code at compare_values (type %d)", type);
+                        exit(100);
                         return 0;
         }
 }
@@ -325,13 +329,15 @@ char *
 value_type_to_string(enum value_type vt)
 {
         switch (vt) {
-                case VAL_STRING: return "VAL_STRING";
                 case VAL_BOOLEAN: return "VAL_BOOLEAN";
-                case VAL_INTEGER: return "VAL_INTEGER";
-                case VAL_VECTOR: return "VAL_VECTOR";
                 case VAL_FUNCTION: return "VAL_FUNCTION";
+                case VAL_INTEGER: return "VAL_INTEGER";
+                case VAL_STRING: return "VAL_STRING";
+                case VAL_VECTOR: return "VAL_VECTOR";
+                case VAL_VOID: return "VAL_VOID";
         }
-        return "unreachable code in value_type_to_string";
+        exit(100);
+        return "";
 }
 
 void

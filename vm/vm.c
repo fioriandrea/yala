@@ -139,6 +139,9 @@ dispatch_op_read(struct vm *vm, enum value_type vt, char *buffer, int cap)
                 case VAL_STRING:
                         pushv(vm, value_from_c_string(buffer));
                         break;
+                default:
+                        exit(100);
+                        break;
         }
 }
 

@@ -10,7 +10,7 @@ static struct semantic_type emit_indexing_expression(struct environment *env, st
 static struct semantic_type emit_module_call(struct environment *env, struct tree_node *root);
 static void emit_for_statement(struct environment *env, struct tree_node *root);
 static int environment_local_search_check_write(struct environment *env, struct token name, struct tree_node *var, struct local_position *localpos);
-static struct semantic_type emit_op_set_local_lhs_type(struct environment *env, struct local_position localpos, struct tree_node *lhs);
+static struct semantic_type emit_lhs_prelude(struct environment *env, struct local_position localpos, struct tree_node *lhs);
 static void emit_op_set_local(struct environment *env, struct tree_node *node, struct local_position localpos, struct semantic_type rhs_type);
 static void emit_op_local_long(struct environment *env, struct tree_node *node, enum opcode op, struct local_position localpos);
 static struct local_position environment_local_push(struct environment *env, struct local topush);
@@ -57,6 +57,7 @@ static void patch_function_declaration(struct environment *env, struct tree_node
 static void patch_procedure_declaration(struct environment *env, struct tree_node *root, int addr);
 static void emit_program_declaration(struct environment *env, struct tree_node *root);
 static struct semantic_type compute_lhs_type(struct environment *env, struct tree_node *lhs);
+static void emit_set_local(struct environment *env, struct tree_node *lhs, struct local_position localpos);
 
 struct bytecode *
 generate_bytecode(struct tree_node *parsetree)
@@ -124,13 +125,19 @@ emit_statement(struct environment *env, struct tree_node *root)
                         struct local_position localpos;
                         if (!environment_local_search_check_write(env, var->value, var, &localpos))
                                 break;
-                        struct semantic_type lhs_type = emit_op_set_local_lhs_type(env, localpos, root->left);
+                        struct semantic_type lhs_type = compute_lhs_type(env, node);
                         if (lhs_type.id == VAL_VECTOR) {
                                 semantic_error(env, node, "reading vectors is not supported");
                                 break;
                         }
                         emit_read_type(env, node, lhs_type);
-                        emit_op_set_local(env, node, localpos, lhs_type);
+                        printf("\n");
+                        tree_node_print(node);
+                        printf("\n");
+                        printf("\n");
+                        tree_node_print(var);
+                        printf("\n");
+                        emit_set_local(env, node, localpos);
                         node = node->next;
                         count++;
                 }
@@ -478,7 +485,8 @@ type_node_to_type(struct environment *env, struct tree_node *node)
                 type = vector_type_node_to_type(env, node);
                 break;
         default:
-                printf("unreachable code in type_node_to_type\n");
+                exit(100);
+                break;
         }
         return type;
 }
@@ -606,6 +614,11 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                 emit_constant(env, node, val);
                 break;
         }
+        case VAL_VOID:
+                emit_load_constant(env, node, VAL_VOID, value_void());
+                break;
+        default:
+                break;
         }
 }
 
@@ -804,8 +817,15 @@ environment_local_search_check_write(struct environment *env, struct token name,
         return 1;
 }
 
+static void
+emit_set_local(struct environment *env, struct tree_node *lhs, struct local_position localpos)
+{
+        struct semantic_type lhs_type = emit_lhs_prelude(env, localpos, lhs);
+        emit_op_set_local(env, lhs, localpos, lhs_type);
+}
+
 static struct semantic_type
-emit_op_set_local_lhs_type(struct environment *env, struct local_position localpos, struct tree_node *lhs)
+emit_lhs_prelude(struct environment *env, struct local_position localpos, struct tree_node *lhs)
 {
         struct local local = environment_local_get(env, localpos);
         struct semantic_type toret;
@@ -873,7 +893,7 @@ emit_assign_statement(struct environment *env, struct tree_node *root)
 
         right_type = emit_expression(env, rhs);
 
-        left_type = emit_op_set_local_lhs_type(env, localpos, lhs);
+        left_type = emit_lhs_prelude(env, localpos, lhs);
 
         if (!semantic_type_equal(left_type, right_type)) {
                 semantic_error(env, root, "mismatching types in assignment (%s = %s)", value_type_to_string(left_type.id), value_type_to_string(right_type.id));
@@ -991,6 +1011,9 @@ build_function_semantic_type(struct environment *env, struct tree_node *root)
                                 case TOKEN_OUT:
                                         mod_arg_type.modifier = ARG_MOD_OUT;
                                         break;
+                                default:
+                                        exit(100);
+                                        break;
                                 }
                         }
                         arg_types_push(&env->arg_types, mod_arg_type);
@@ -1010,8 +1033,6 @@ static int
 forward_declare_function(struct environment *env, struct tree_node *root)
 {
         struct tree_node *function_name_node = root->left;
-        struct tree_node *function_types_node = root->right;
-        struct tree_node *declaration_blocks_node = root->child;
 
         struct semantic_type fntype = build_function_semantic_type(env, root);
         declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R, NULL);
@@ -1080,6 +1101,9 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
                                         break;
                                 case NODE_FUNCTION_DECL:
                                         patch_function_declaration(&subenv, node, addresses[i++]);
+                                        break;
+                                default:
+                                        exit(100);
                                         break;
                         }
                         if (i >= MAX_LOCAL_FUNCTIONS)
@@ -1219,8 +1243,7 @@ emit_module_call(struct environment *env, struct tree_node *root)
                         if (!environment_local_search_check_write(env, var->value, var, &localpos))
                                 break;
                         emit_variable_default(env, expr_node, compute_lhs_type(env, expr_node));
-                        struct semantic_type lhs_type = emit_op_set_local_lhs_type(env, localpos, expr_node);
-                        emit_op_set_local(env, expr_node, localpos, lhs_type);
+                        emit_set_local(env, expr_node, localpos);
                 }
                 struct semantic_type expr_type = emit_expression(env, expr_node);
                 if (!semantic_type_equal(semantic_type_argument_at(called_type, argcount - 1), expr_type)) {
@@ -1241,9 +1264,8 @@ emit_module_call(struct environment *env, struct tree_node *root)
                 if (!environment_local_search_check_write(env, var->value, var, &localpos))
                         break;
                 emit_byte(env, lhsides[i], OP_PUSH_FROM_PEEK_ARGSTACK);
-                struct semantic_type lhs_type = emit_op_set_local_lhs_type(env, localpos, lhsides[i]);
+                emit_set_local(env, lhsides[i], localpos);
                 struct semantic_type arg_type = semantic_type_argument_at(called_type, i);
-                emit_op_set_local(env, lhsides[i], localpos, lhs_type);
                 emit_two_bytes(env, lhsides[i], OP_POPARG, arg_type.id == VAL_VECTOR);
         }
         return semantic_type_return_value(called_type);
@@ -1440,14 +1462,15 @@ opcodestring(enum opcode code)
         case OP_NOT: return "OP_NOT";
         case OP_ONE: return "OP_ONE";
         case OP_POPA: return "OP_POPA";
+        case OP_POPARG: return "OP_POPARG";
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
         case OP_PUSH_BYTE: return "OP_PUSH_BYTE";
+        case OP_PUSH_FROM_PEEK_ARGSTACK: return "OP_PUSH_FROM_PEEK_ARGSTACK";
+        case OP_PUSH_TO_ARGSTACK: return "OP_PUSH_TO_ARGSTACK";
         case OP_READ: return "OP_READ";
         case OP_RETURN: return "OP_RETURN";
         case OP_SET_INDEX_LOCAL_LONG: return "OP_SET_INDEX_LOCAL_LONG";
-        case OP_PUSH_FROM_PEEK_ARGSTACK: return "OP_PUSH_FROM_PEEK_ARGSTACK";
-        case OP_POPARG: return "OP_POPARG";
         case OP_SET_LOCAL_LONG: return "OP_SET_LOCAL_LONG";
         case OP_SHIFT_ASTACKENT_TO_BASE: return "OP_SHIFT_ASTACKENT_TO_BASE";
         case OP_SKIP_BACK_LONG: return "OP_SKIP_BACK_LONG";
@@ -1456,9 +1479,9 @@ opcodestring(enum opcode code)
         case OP_SUBI: return "OP_SUBI";
         case OP_WRITE: return "OP_WRITE";
         case OP_ZERO: return "OP_ZERO";
-        case OP_PUSH_TO_ARGSTACK: return "OP_PUSH_TO_ARGSTACK";
         }
-        return "unreachable return in opcodestring";
+        exit(100);
+        return "";
 }
 
 static void
@@ -1558,9 +1581,9 @@ disassemble_helper(struct bytecode *code, int indentation)
                 case OP_CALL:
                 case OP_RETURN:
                 case OP_POPARG:
+                case OP_READ:
                         ip = disassemble_argument(code, ip);
                         break;
-                case OP_READ:
                 case OP_GET_INDEX:
                 case OP_EQUA:
                 case OP_PUSH_TO_ARGSTACK:
