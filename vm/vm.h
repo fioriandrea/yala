@@ -24,6 +24,7 @@ struct vm {
         union value argstack[MAX_ARITY];
         union value *argsp;
         union value *argasp;
+        int error;
 };
 
 void vm_init(struct vm *vm, struct bytecode *code);
