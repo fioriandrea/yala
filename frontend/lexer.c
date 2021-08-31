@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include <ctype.h>
 
 #include "frontend.h"
@@ -154,7 +155,7 @@ set_identifier_token(struct token *token, struct lexer *lexer)
                 {"integer", 7, TOKEN_INTEGER},
                 {"of", 2, TOKEN_OF},
                 {"or", 2, TOKEN_OR},
-                {"out", TOKEN_OUT},
+                {"out", 3, TOKEN_OUT},
                 {"procedure", 9, TOKEN_PROCEDURE},
                 {"program", 7, TOKEN_PROGRAM},
                 {"read", 4, TOKEN_READ},
@@ -294,7 +295,8 @@ token_type_string(enum token_type type)
         case TOKEN_WRITELN: return "TOKEN_WRITELN";
         case TOKEN_WRITE: return "TOKEN_WRITE";
         }
-        return "unreachable return in token_type_string";
+        exit(100);
+        return "";
 }
 
 int

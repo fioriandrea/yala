@@ -5,7 +5,7 @@
 
 #include "../semantics/semantics.h"
 
-#define STACK_MAX (1 << 10)
+#define STACK_MAX (1 << 16)
 #define OP_READ_BUF_CAP (1 << 10)
 
 struct stack_frame {
@@ -21,6 +21,9 @@ struct vm {
         union value stack[STACK_MAX];
         union value astack[STACK_MAX];
         struct stack_frame framestack[STACK_MAX];
+        union value argstack[MAX_ARITY];
+        union value *argsp;
+        union value *argasp;
 };
 
 void vm_init(struct vm *vm, struct bytecode *code);

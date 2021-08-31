@@ -124,6 +124,7 @@ enum node_type {
         NODE_PLUS_EXPR,
         NODE_PROCEDURE_DECL,
         NODE_PROGRAM,
+        NODE_QUALIFIER,
         NODE_READ_STAT,
         NODE_REPEAT_STAT,
         NODE_RETURN_STAT,

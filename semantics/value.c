@@ -82,6 +82,7 @@ LIST_DEFINE(valuelist, union value)
 LIST_DEFINE(locals, struct local)
 LIST_DEFINE(break_likes, struct break_like)
 LIST_DEFINE(arg_types, struct semantic_type)
+LIST_DEFINE(intlist, int)
 
 void
 bytecode_init(struct bytecode *code)
@@ -250,6 +251,8 @@ semantic_type_scalar(enum value_type vt)
         type.size = 1;
         type.param_types_start_index = 0;
         type.ret_type_index = -1;
+        type.arg_types = NULL;
+        type.modifier = ARG_MOD_IN;
         return type;
 }
 
@@ -273,6 +276,10 @@ values_equal(union value val0, union value val1, enum value_type type, enum valu
                                 return 0;
                 }
                 return 1;
+        case VAL_VOID:
+                return 1;
+        case VAL_FUNCTION:
+                return 0;
         }
         return 0;
 }
@@ -296,7 +303,7 @@ compare_values(union value val0, union value val1, enum value_type type)
                 case VAL_INTEGER:
                         return val0.integer - val1.integer;
                 default:
-                        printf("unreachable code at compare_values (type %d)", type);
+                        exit(100);
                         return 0;
         }
 }
@@ -324,13 +331,15 @@ char *
 value_type_to_string(enum value_type vt)
 {
         switch (vt) {
-                case VAL_STRING: return "VAL_STRING";
                 case VAL_BOOLEAN: return "VAL_BOOLEAN";
-                case VAL_INTEGER: return "VAL_INTEGER";
-                case VAL_VECTOR: return "VAL_VECTOR";
                 case VAL_FUNCTION: return "VAL_FUNCTION";
+                case VAL_INTEGER: return "VAL_INTEGER";
+                case VAL_STRING: return "VAL_STRING";
+                case VAL_VECTOR: return "VAL_VECTOR";
+                case VAL_VOID: return "VAL_VOID";
         }
-        return "unreachable code in value_type_to_string";
+        exit(100);
+        return "";
 }
 
 void

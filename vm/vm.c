@@ -23,6 +23,8 @@ void
 vm_init(struct vm *vm, struct bytecode *code)
 {
         vm->framese = vm->framestack;
+        vm->argsp = vm->argstack;
+        vm->argasp = vm->astack + STACK_MAX;
         stack_frame_init(vm->framese, vm->stack, vm->stack, vm->astack, code);
 }
 
@@ -136,6 +138,9 @@ dispatch_op_read(struct vm *vm, enum value_type vt, char *buffer, int cap)
                         break;
                 case VAL_STRING:
                         pushv(vm, value_from_c_string(buffer));
+                        break;
+                default:
+                        exit(100);
                         break;
         }
 }
@@ -346,6 +351,27 @@ vm_run(struct vm *vm)
                 vm->framese--;
                 vm->framese->sp -= arg0 + 1;
                 pushv(vm, val0);
+                break;
+        case OP_ARGSTACK_LOAD:
+                arg0 = advance_ip(vm);
+                arg1 = advance_ip(vm);
+                val0 = VM_STACKBASE(vm)[arg0];
+                if (arg1) {
+                        vm->argasp -= val0.vector.size;
+                        memcpy(vm->argasp, val0.vector.astackent, val0.vector.size * sizeof(union value));
+                        val0.vector.astackent = vm->argasp;
+                }
+                *vm->argsp++ = val0;
+                break;
+        case OP_ARGSTACK_PEEK:
+                pushv(vm, *(vm->argsp - 1));
+                break;
+        case OP_ARGSTACK_UNLOAD:
+                arg0 = advance_ip(vm);
+                val0 = *--vm->argsp;
+                if (arg0) {
+                        vm->argasp += val0.vector.size;
+                }
                 break;
         case OP_GET_LOCAL_LONG:
                 offset = advance_long_ip(vm);
