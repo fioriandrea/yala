@@ -250,6 +250,7 @@ semantic_type_scalar(enum value_type vt)
         type.size = 1;
         type.param_types_start_index = 0;
         type.ret_type_index = -1;
+        type.arg_types = NULL;
         type.modifier = ARG_MOD_IN;
         return type;
 }

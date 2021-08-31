@@ -24,7 +24,7 @@ vm_init(struct vm *vm, struct bytecode *code)
 {
         vm->framese = vm->framestack;
         vm->argsp = vm->argstack;
-        vm->argasp = vm->argastack;
+        vm->argasp = vm->astack + STACK_MAX;
         stack_frame_init(vm->framese, vm->stack, vm->stack, vm->astack, code);
 }
 
@@ -352,24 +352,25 @@ vm_run(struct vm *vm)
                 vm->framese->sp -= arg0 + 1;
                 pushv(vm, val0);
                 break;
-        case OP_PUSH_TO_ARGSTACK:
+        case OP_ARGSTACK_LOAD:
                 arg0 = advance_ip(vm);
                 arg1 = advance_ip(vm);
                 val0 = VM_STACKBASE(vm)[arg0];
-                *vm->argsp++ = val0;
                 if (arg1) {
-                        memcpy(vm->argasp, val0.vector.astackent, val0.vector.size);
-                        vm->argasp += val0.vector.size;
+                        vm->argasp -= val0.vector.size;
+                        memcpy(vm->argasp, val0.vector.astackent, val0.vector.size * sizeof(union value));
+                        val0.vector.astackent = vm->argasp;
                 }
+                *vm->argsp++ = val0;
                 break;
-        case OP_PUSH_FROM_PEEK_ARGSTACK:
+        case OP_ARGSTACK_PEEK:
                 pushv(vm, *(vm->argsp - 1));
                 break;
-        case OP_POPARG:
+        case OP_ARGSTACK_UNLOAD:
                 arg0 = advance_ip(vm);
                 val0 = *--vm->argsp;
                 if (arg0) {
-                        vm->argasp -= val0.vector.size;
+                        vm->argasp += val0.vector.size;
                 }
                 break;
         case OP_GET_LOCAL_LONG:

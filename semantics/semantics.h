@@ -77,9 +77,9 @@ enum opcode
         OP_RETURN,
         OP_SHIFT_ASTACKENT_TO_BASE,
 
-        OP_PUSH_TO_ARGSTACK,
-        OP_PUSH_FROM_PEEK_ARGSTACK,
-        OP_POPARG,
+        OP_ARGSTACK_LOAD,
+        OP_ARGSTACK_PEEK,
+        OP_ARGSTACK_UNLOAD,
 
         OP_HALT,
 };
