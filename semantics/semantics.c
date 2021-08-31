@@ -131,12 +131,6 @@ emit_statement(struct environment *env, struct tree_node *root)
                                 break;
                         }
                         emit_read_type(env, node, lhs_type);
-                        printf("\n");
-                        tree_node_print(node);
-                        printf("\n");
-                        printf("\n");
-                        tree_node_print(var);
-                        printf("\n");
                         emit_set_local(env, node, localpos);
                         node = node->next;
                         count++;
@@ -857,7 +851,7 @@ emit_indexing_prelude(struct environment *env, struct semantic_type indexed_type
 
         /* emit dimensions */
         for (int i = 0; i < indexed_type.rank; i++) {
-                emit_two_bytes(env, indexing_node, OP_PUSH_BYTE, indexed_type.dimensions[i]);
+                emit_load_constant(env, indexing_node, VAL_INTEGER, value_from_c_int(indexed_type.dimensions[i]));
         }
 
         return compute_indexed_semantic_type(index_count, indexed_type);

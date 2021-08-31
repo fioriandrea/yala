@@ -5,7 +5,7 @@
 
 #include "../semantics/semantics.h"
 
-#define STACK_MAX (1 << 10)
+#define STACK_MAX (1 << 16)
 #define OP_READ_BUF_CAP (1 << 10)
 
 struct stack_frame {
