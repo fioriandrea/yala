@@ -66,6 +66,9 @@ parse_cli_arguments(int argc, char **argv)
                         display_tree = 1;
                 } else if (strcmp(option, "--display-bytecode") == 0) {
                         display_bytecode = 1;
+                } else {
+                        progerror("unrecognized option %s\n", option);
+                        exit(1);
                 }
         }
         if (argc == 0) {
