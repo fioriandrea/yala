@@ -252,11 +252,9 @@ main(int argc, char **argv)
                 case RUN_COMPILE:
                         run_compile(programtext, proglen);
                         break;
-                break;
                 case RUN_EXECUTE:
                         run_execute(programtext, proglen);
                         break;
-                break;
         }
 
         return 0;
