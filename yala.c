@@ -5,14 +5,15 @@
 #include <string.h>
 
 #include "frontend/frontend.h"
-
 #include "semantics/semantics.h"
+#include "serialization/serialization.h"
 #include "vm/vm.h"
 
 static void varperror(char *fmt, ...);
 static void progvarperror(char *fmt, ...);
 static void progerror(char *fmt, ...);
 static void run_run(char *programtext, int proglen);
+static void run_compile(char *programtext, int proglen);
 
 enum run_mode {
         RUN_RUN,
@@ -35,9 +36,10 @@ struct run_mode_string run_mode_strings[] = {
 static char *progname = "";
 static int display_tree;
 static int display_bytecode;
-static int execute = 1;
+static int no_execute = 0;
 static int run_mode;
-static char *input_path;
+static char *input_path = NULL;
+static char *output_path = NULL;
 
 static void
 parse_option(char *option, int *argcp, char ***argvp)
@@ -47,7 +49,10 @@ parse_option(char *option, int *argcp, char ***argvp)
         } else if (strcmp(option, "--display-bytecode") == 0) {
                 display_bytecode = 1;
         } else if (strcmp(option, "--no-execute") == 0 && (run_mode == RUN_RUN || run_mode == RUN_EXECUTE)) {
-                execute = 0;
+                no_execute = 1;
+        } else if (strcmp(option, "--output") == 0 && (run_mode == RUN_COMPILE)) {
+                (*argcp)--;
+                output_path = *((*argvp)++);
         } else {
                 progerror("unrecognized option %s\n", option);
                 exit(1);
@@ -148,12 +153,10 @@ load_program(char *fname, int *proglen)
         return programtext;
 }
 
-static void
-run_run(char *programtext, int proglen)
+static struct tree_node *
+parse_file(char *programtext, int proglen)
 {
         struct tree_node *root;
-        struct bytecode *code;
-        struct vm vm;
 
         root = parse(programtext, proglen);
         if (!root)
@@ -161,6 +164,14 @@ run_run(char *programtext, int proglen)
 
         if (display_tree)
                 tree_node_print(root);
+
+        return root;
+}
+
+static struct bytecode
+compile_tree(char *programtext, struct tree_node *root)
+{
+        struct bytecode *code;
 
         code = generate_bytecode(root);
         if (code == NULL)
@@ -172,11 +183,46 @@ run_run(char *programtext, int proglen)
         if (display_bytecode)
                 disassemble(code);
 
-        if (!execute)
+        return *code;
+}
+
+static void
+execute_code(struct bytecode *code)
+{
+
+        struct vm vm;
+
+        if (no_execute)
                 return;
 
         vm_init(&vm, code);
         vm_run(&vm);
+}
+
+static void
+run_run(char *programtext, int proglen)
+{
+        struct tree_node *root = parse_file(programtext, proglen);
+        struct bytecode code = compile_tree(programtext, root);
+        execute_code(&code);
+}
+
+static void
+run_compile(char *programtext, int proglen)
+{
+        struct tree_node *root = parse_file(programtext, proglen);
+        struct bytecode code = compile_tree(programtext, root);
+        if (output_path == NULL) {
+                progerror("must supply output file\n");
+                exit(1);
+        }
+        FILE *outfile = fopen(output_path, "w");
+        if (outfile == NULL) {
+                progvarperror("cannot open file %s", output_path);
+                exit(1);
+        }
+        serialize_bytecode(&code, outfile);
+        fclose(outfile);
 }
 
 int
@@ -194,10 +240,11 @@ main(int argc, char **argv)
                         run_run(programtext, proglen);
                         break;
                 case RUN_COMPILE:
-
+                        run_compile(programtext, proglen);
+                        break;
                 break;
                 case RUN_EXECUTE:
-                
+
                 break;
         }
 

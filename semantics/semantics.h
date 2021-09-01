@@ -29,9 +29,10 @@ enum opcode
         OP_LOCI_LONG, /* constants */
         OP_LOCB_LONG,
         OP_LOCS_LONG,
-        OP_LOCV_LONG,
         OP_LOCF_LONG,
         OP_LOCVO_LONG,
+        OP_LOC_ALINK_LONG,
+
         OP_PUSH_BYTE,
 
         OP_ADDI, /* integer arithmetic */
@@ -66,7 +67,6 @@ enum opcode
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
         OP_POPA,
-        OP_LOC_ALINK_LONG,
 
         OP_GET_INDEX,
         OP_SET_INDEX_LOCAL_LONG,

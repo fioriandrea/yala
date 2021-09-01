@@ -30,7 +30,7 @@ static void emit_pop_scope(struct environment *env, struct tree_node *node);
 static void emit_push_scope(struct environment *env, struct tree_node *node);
 static int emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen);
 static void emit_constant(struct environment *env, struct tree_node *root, union value val);
-static void emit_load_constant(struct environment *env, struct tree_node *root, enum value_type type, union value val);
+static void emit_load_scalar_constant(struct environment *env, struct tree_node *root, enum value_type type, union value val);
 static struct semantic_type emit_vector_constant(struct environment *env, struct tree_node *root, int depth);
 static void emit_popv(struct environment *env, struct tree_node *node, struct semantic_type type);
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
@@ -309,19 +309,19 @@ emit_expression(struct environment *env, struct tree_node *root)
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
+                emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
                 return booltype;
         case NODE_INTGER_CONST:
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(root->value)));
+                emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(root->value)));
                 return inttype;
         case NODE_STRING_CONST:
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_constant(env, root, VAL_STRING, value_from_token(root->value));
+                emit_load_scalar_constant(env, root, VAL_STRING, value_from_token(root->value));
                 return strtype;
         case NODE_VECTOR_CONST:
                 return emit_vector_constant(env, root, 0);
@@ -419,16 +419,16 @@ emit_constant(struct environment *env, struct tree_node *root, union value val)
 }
 
 static void
-emit_load_constant(struct environment *env, struct tree_node *root, enum value_type type, union value val)
+emit_load_scalar_constant(struct environment *env, struct tree_node *root, enum value_type type, union value val)
 {
         enum opcode op;
         switch (type) {
                 case VAL_INTEGER: op = OP_LOCI_LONG; break;
                 case VAL_BOOLEAN: op = OP_LOCB_LONG; break;
                 case VAL_STRING: op = OP_LOCS_LONG; break;
-                case VAL_VECTOR: op = OP_LOCV_LONG; break;
                 case VAL_FUNCTION: op = OP_LOCF_LONG; break;
                 case VAL_VOID: op = OP_LOCVO_LONG; break;
+                case VAL_VECTOR: exit(100); break;
         }
         emit_byte(env, root, op);
         emit_constant(env, root, val);
@@ -631,7 +631,7 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                 break;
         }
         case VAL_VOID:
-                emit_load_constant(env, node, VAL_VOID, value_void());
+                emit_load_scalar_constant(env, node, VAL_VOID, value_void());
                 break;
         default:
                 break;
@@ -873,7 +873,7 @@ emit_indexing_prelude(struct environment *env, struct semantic_type indexed_type
 
         /* emit dimensions */
         for (int i = 0; i < indexed_type.rank; i++) {
-                emit_load_constant(env, indexing_node, VAL_INTEGER, value_from_c_int(indexed_type.dimensions[i]));
+                emit_load_scalar_constant(env, indexing_node, VAL_INTEGER, value_from_c_int(indexed_type.dimensions[i]));
         }
 
         return compute_indexed_semantic_type(index_count, indexed_type);
@@ -1072,7 +1072,7 @@ forward_declare_function(struct environment *env, struct tree_node *root)
         declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R, NULL);
         union value fnval;
         fnval.function.code = NULL;
-        emit_load_constant(env, root, VAL_FUNCTION, fnval);
+        emit_load_scalar_constant(env, root, VAL_FUNCTION, fnval);
         return env->code->constants.len - 1;
 }
 
@@ -1216,7 +1216,7 @@ emit_body(struct environment *env, struct tree_node *statements_node, struct tre
                 } else {
                         return_type = semantic_type_void();
                         actual_ret_type = semantic_type_void();
-                        emit_load_constant(env, node, VAL_VOID, value_void());
+                        emit_load_scalar_constant(env, node, VAL_VOID, value_void());
                 }
                 if (!semantic_type_equal(return_type, actual_ret_type)) {
                         semantic_error(env, node, "mismatching return type in function");
@@ -1479,7 +1479,6 @@ opcodestring(enum opcode code)
         case OP_LOCF_LONG: return "OP_LOCF_LONG";
         case OP_LOCI_LONG: return "OP_LOCI_LONG";
         case OP_LOCS_LONG: return "OP_LOCS_LONG";
-        case OP_LOCV_LONG: return "OP_LOCV_LONG";
         case OP_LOCVO_LONG: return "OP_LOCVO_LONG";
         case OP_LT: return "OP_LT";
         case OP_MULI: return "OP_MULI";
@@ -1581,7 +1580,6 @@ disassemble_helper(struct bytecode *code, int indentation)
                 case OP_LOCI_LONG:
                 case OP_LOCB_LONG:
                 case OP_LOCS_LONG:
-                case OP_LOCV_LONG:
                 case OP_LOCVO_LONG:
                 case OP_LOC_ALINK_LONG:
                 case OP_LOCF_LONG:
