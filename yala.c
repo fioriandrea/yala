@@ -225,6 +225,16 @@ run_compile(char *programtext, int proglen)
         fclose(outfile);
 }
 
+static void
+run_execute(char *programtext, int proglen)
+{
+        struct bytecode code;
+        deserialize_bytecode(&code, programtext);
+        if (display_bytecode)
+                disassemble(&code);
+        execute_code(&code);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -244,7 +254,8 @@ main(int argc, char **argv)
                         break;
                 break;
                 case RUN_EXECUTE:
-
+                        run_execute(programtext, proglen);
+                        break;
                 break;
         }
 
