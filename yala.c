@@ -35,8 +35,24 @@ struct run_mode_string run_mode_strings[] = {
 static char *progname = "";
 static int display_tree;
 static int display_bytecode;
+static int execute = 1;
 static int run_mode;
 static char *input_path;
+
+static void
+parse_option(char *option, int *argcp, char ***argvp)
+{
+        if (strcmp(option, "--display-tree") == 0 && (run_mode == RUN_RUN || run_mode == RUN_COMPILE)) {
+                display_tree = 1;
+        } else if (strcmp(option, "--display-bytecode") == 0) {
+                display_bytecode = 1;
+        } else if (strcmp(option, "--no-execute") == 0 && (run_mode == RUN_RUN || run_mode == RUN_EXECUTE)) {
+                execute = 0;
+        } else {
+                progerror("unrecognized option %s\n", option);
+                exit(1);
+        }
+}
 
 static void
 parse_cli_arguments(int argc, char **argv)
@@ -62,14 +78,7 @@ parse_cli_arguments(int argc, char **argv)
         while (argc > 0 && (*argv)[0] == '-' && (*argv)[1] == '-') {
                 char *option = *argv++;
                 argc--;
-                if (strcmp(option, "--display-tree") == 0) {
-                        display_tree = 1;
-                } else if (strcmp(option, "--display-bytecode") == 0) {
-                        display_bytecode = 1;
-                } else {
-                        progerror("unrecognized option %s\n", option);
-                        exit(1);
-                }
+                parse_option(option, &argc, &argv);
         }
         if (argc == 0) {
                 progerror("must supply a file\n");
@@ -162,6 +171,9 @@ run_run(char *programtext, int proglen)
 
         if (display_bytecode)
                 disassemble(code);
+
+        if (!execute)
+                return;
 
         vm_init(&vm, code);
         vm_run(&vm);
