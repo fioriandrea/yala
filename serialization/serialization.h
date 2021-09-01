@@ -5,9 +5,7 @@
 
 #include "../semantics/semantics.h"
 
-void
-serialize_bytecode(struct bytecode *code, FILE *outfile);
-
+void serialize_bytecode(struct bytecode *code, FILE *outfile);
 char *deserialize_bytecode(struct bytecode *code, char *p);
 
 #endif
