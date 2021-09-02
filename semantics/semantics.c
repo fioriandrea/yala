@@ -620,10 +620,6 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                 emit_byte(env, node, OP_EMPTY_STRING);
                 break;
         case VAL_VECTOR: {
-                for (int i = 0; i < type.size; i++) {
-                        emit_variable_default(env, node, semantic_type_scalar(type.base));
-                        emit_byte(env, node, OP_POP_TO_ASTACK);
-                }
                 emit_byte(env, node, OP_LOC_ALINK_LONG);
                 union value val;
                 val.vector.size = type.size;

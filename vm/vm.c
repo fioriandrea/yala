@@ -93,6 +93,16 @@ pusha(struct vm *vm, union value val)
 }
 
 static void
+asp_move_up(struct vm *vm, int offset)
+{
+        if ((VM_ASP(vm) + offset) - (vm->astack + STACK_MAX) > 0) {
+                runtime_error(vm, "stack overflow");
+                return;
+        }
+        VM_ASP(vm) += offset;
+}
+
+static void
 popa(struct vm *vm, int size) {
         for (int i = 0; i < size; i++) {
                 VM_ASP(vm)--;
@@ -315,8 +325,9 @@ vm_run(struct vm *vm)
                 break;
         case OP_LOC_ALINK_LONG:
                 arglong0 = advance_long_ip(vm);
-                VM_CODE(vm)->constants.buffer[arglong0].vector.astackent = VM_ASP(vm) - VM_CODE(vm)->constants.buffer[arglong0].vector.size;
-                pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
+                VM_CODE(vm)->constants.buffer[arglong0].vector.astackent = VM_ASP(vm);
+                asp_move_up(vm, bytecode_constant_at(VM_CODE(vm), arglong0).vector.size);
+                pushv(vm, bytecode_constant_at(VM_CODE(vm), arglong0));
                 break;
         case OP_NEWLINE:
                 printf("\n");
