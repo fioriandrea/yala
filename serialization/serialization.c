@@ -9,12 +9,14 @@ static void serialize_loc(struct bytecode *code, FILE *outfile, enum opcode op, 
 static uint16_t read_address(struct bytecode *code, int *ip);
 static void serialize_constants(struct bytecode *code, FILE *outfile);
 
+#define END_FUNCTION_DELIM (-1)
+
 void
 serialize_bytecode(struct bytecode *code, FILE *outfile)
 {
         serialize_code(code, outfile);
         serialize_constants(code, outfile);
-        fprintf(outfile, "ENDCF\n");
+        fprintf(outfile, "%d\n", END_FUNCTION_DELIM);
 }
 
 static void
@@ -34,28 +36,28 @@ serialize_loc(struct bytecode *code, FILE *outfile, enum opcode op, uint16_t add
         union value val = valuelist_at(&code->constants, address);
         switch (op) {
         case OP_LOCI_LONG:
-                fprintf(outfile, "CI %d", val.integer);
+                fprintf(outfile, "%d %d", VAL_INTEGER, val.integer);
                 fprintf(outfile, "\n");
                 break;
         case OP_LOCB_LONG:
-                fprintf(outfile, "CB %d", val.boolean);
+                fprintf(outfile, "%d %d", VAL_BOOLEAN, val.boolean);
                 fprintf(outfile, "\n");
                 break;
         case OP_LOCS_LONG:
-                fprintf(outfile, "CS %.*s", val.string.length, val.string.str);
+                fprintf(outfile, "%d %.*s", VAL_STRING, val.string.length, val.string.str);
                 {char n = 0x00; fwrite(&n, sizeof(char), 1, outfile);}
                 fprintf(outfile, "\n");
                 break;
         case OP_LOC_ALINK_LONG:
-                fprintf(outfile, "CV %d", val.vector.size);
+                fprintf(outfile, "%d %d", VAL_VECTOR, val.vector.size);
                 fprintf(outfile, "\n");
                 break;
         case OP_LOCVO_LONG:
-                fprintf(outfile, "CVO");
+                fprintf(outfile, "%d", VAL_VOID);
                 fprintf(outfile, "\n");
                 break;
         case OP_LOCF_LONG:
-                fprintf(outfile, "CF ");
+                fprintf(outfile, "%d ", VAL_FUNCTION);
                 serialize_bytecode(val.function.code, outfile);
                 break;
         default:
@@ -144,7 +146,7 @@ deserialize_code(struct bytecode *code, char *p)
                 struct lineinfo linfo;
                 if (*p++ != '(') {
                         link_panic("expected (");
-                } 
+                }
                 p = read_integer(p, &linfo.line);
                 if (*p++ != ':') {
                         link_panic("expected :");
@@ -165,33 +167,23 @@ deserialize_code(struct bytecode *code, char *p)
 static char *
 deserialize_constants(struct bytecode *code, char *p)
 {
-#define CONST_TYPE_BUFF_SIZE 10
-        char const_type_buff[CONST_TYPE_BUFF_SIZE];
         union value val;
-
-        for (;;) {
-                char *const_typep = const_type_buff;
-                do {
-                        if (*p < 'A' || *p > 'Z') {
-                                link_panic("expected uppercase letter");
-                        }
-                        if (const_typep - const_type_buff == CONST_TYPE_BUFF_SIZE - 1) {
-                                link_panic("unknown constant type");
-                        }
-                        *const_typep++ = *p++;
-                } while (*p >= 'A' && *p <= 'Z');
-                *const_typep = '\0';
+        for (;;)
+        {
+                int type;
+                p = read_integer(p, &type);
                 p = skip_spaces(p);
-
-                if (strcmp(const_type_buff, "CI") == 0) {
+                switch (type) {
+                case VAL_INTEGER:
                         p = read_integer(p, &val.integer);
-                } else if (strcmp(const_type_buff, "CB") == 0) {
+                        break;
+                case VAL_BOOLEAN:
                         val.boolean = *p++ - '0';
-                } else if (strcmp(const_type_buff, "CVO") == 0) {
+                        break;
+                case VAL_VOID:
                         val.integer = 0;
-                } else if (strcmp(const_type_buff, "CV") == 0) {
-                        p = read_integer(p, &val.vector.size);
-                } else if (strcmp(const_type_buff, "CS") == 0) {
+                        break;
+                case VAL_STRING: {
                         int cap = 8;
                         char *buffer = malloc(sizeof(char) * cap);
                         int len = 0;
@@ -207,13 +199,20 @@ deserialize_constants(struct bytecode *code, char *p)
                         val.string.length = len;
                         val.string.hash = hash_string(buffer, len);
                         p++; /* skip \0 */
-                } else if (strcmp(const_type_buff, "CF") == 0) {
+                        break;
+                }
+                case VAL_VECTOR:
+                        p = read_integer(p, &val.vector.size);
+                        break;
+                case VAL_FUNCTION: {
                         struct bytecode *subcode = malloc(sizeof(struct bytecode));
                         p = deserialize_bytecode(subcode, p);
                         val.function.code = subcode;
-                } else if (strcmp(const_type_buff, "ENDCF") == 0) {
                         break;
-                } else {
+                }
+                case END_FUNCTION_DELIM:
+                        goto end;
+                default:
                         link_panic("unknown constant type");
                 }
                 if (*p++ != '\n') {
@@ -221,18 +220,24 @@ deserialize_constants(struct bytecode *code, char *p)
                 }
                 valuelist_push(&code->constants, val);
         }
+end:
         return p;
-#undef CONST_TYPE_BUFF_SIZE
 }
 
 static char *
 read_integer(char *p, int *i)
 {
+        int sign = 1;
+        if (*p == '-') {
+                sign *= -1;
+                p++;
+        }
         *i = 0;
         while (*p >= '0' && *p <= '9') {
                 *i = (*p - '0') + *i * 10;
                 p++;
         }
+        *i *= sign;
         return p;
 }
 
