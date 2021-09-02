@@ -169,7 +169,7 @@ struct lineinfo {
         int linepos;
 };
 
-#define MAX_CONSTANTS UINT8_MAX
+#define MAX_CONSTANTS UINT16_MAX
 
 LIST_DECLARE(bytes, uint8_t)
 LIST_DECLARE(linelist, struct lineinfo)
