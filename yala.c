@@ -38,6 +38,7 @@ static int display_tree;
 static int display_bytecode;
 static int no_execute = 0;
 static int run_mode;
+static char *run_mode_str;
 static char *input_path = NULL;
 static char *output_path = NULL;
 
@@ -54,7 +55,7 @@ parse_option(char *option, int *argcp, char ***argvp)
                 (*argcp)--;
                 output_path = *((*argvp)++);
         } else {
-                progerror("unrecognized option %s\n", option);
+                progerror("unrecognized option %s in mode %s\n", option, run_mode_str);
                 exit(1);
         }
 }
@@ -68,7 +69,7 @@ parse_cli_arguments(int argc, char **argv)
                 progerror("must supply mode\n");
                 exit(1);
         }
-        char *run_mode_str = *argv++;
+        run_mode_str = *argv++;
         argc--;
         for (struct run_mode_string *rms = run_mode_strings; ; rms++) {
                 if (rms->str == NULL) {
