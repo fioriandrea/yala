@@ -52,20 +52,20 @@ set_eof_token(struct token *token, struct lexer *lexer)
 }
 
 static void
-set_stringlit_token(struct token *token, struct lexer *lexer)
+set_stringlit_token(struct token *token, struct lexer *lexer, char delim)
 {
         struct lexer oldlexer;
 
         lexer->current++;
         oldlexer = *lexer;
-        while (*lexer->current != '\0' && *lexer->current != '"') {
+        while (*lexer->current != '\0' && *lexer->current != delim) {
                 if (*lexer->current == '\n') {
                         lexer->line++;
                         lexer->linepos = 0;
                 }
                 advance(lexer, 1);
         }
-        if (*lexer->current != '"') {
+        if (*lexer->current != delim) {
                 set_error_token(token, &oldlexer, "unterminated string");
         } else {
                 set_token(token, &oldlexer, TOKEN_STRINGLIT, lexer->current - oldlexer.current);
@@ -217,8 +217,8 @@ next_token(struct lexer *lexer)
                                 lexer->linepos = 0;
                         }
                         advance(lexer, 1);
-                } else if (*lexer->current == '"') {
-                        set_stringlit_token(&token, lexer);
+                } else if (*lexer->current == '"' || *lexer->current == '\'') {
+                        set_stringlit_token(&token, lexer, *lexer->current);
                         break;
                 } else if (isdigit(*lexer->current)) {
                         set_integerlit_token(&token, lexer);
