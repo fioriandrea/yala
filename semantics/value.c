@@ -158,7 +158,7 @@ value_print(union value v, enum value_type type, enum value_type base)
                 printf(")");
                 return;
         case VAL_VOID:
-                printf("\"void\"");
+                printf("<VOID>");
                 return;
         }
         printf("unreachable value type %d in value_print", type);

@@ -423,11 +423,20 @@ emit_load_scalar_constant(struct environment *env, struct tree_node *root, enum 
 {
         enum opcode op;
         switch (type) {
-                case VAL_INTEGER: op = OP_LOCI_LONG; break;
-                case VAL_BOOLEAN: op = OP_LOCB_LONG; break;
+                case VAL_INTEGER: 
+                        if (val.integer < UINT8_MAX) {
+                                emit_two_bytes(env, root, OP_PUSH_BYTE, val.integer);
+                                return;
+                        }
+                        op = OP_LOCI_LONG; break;
+                case VAL_BOOLEAN:
+                        emit_byte(env, root, val.boolean ? OP_TRUE : OP_FALSE);
+                        return;
                 case VAL_STRING: op = OP_LOCS_LONG; break;
                 case VAL_FUNCTION: op = OP_LOCF_LONG; break;
-                case VAL_VOID: op = OP_LOCVO_LONG; break;
+                case VAL_VOID:
+                        emit_byte(env, root, OP_FALSE);
+                        return;
                 case VAL_VECTOR: exit(100); break;
         }
         emit_byte(env, root, op);
@@ -1459,6 +1468,9 @@ opcodestring(enum opcode code)
 {
         switch (code) {
         case OP_ADDI: return "OP_ADDI";
+        case OP_ARGSTACK_LOAD: return "OP_ARGSTACK_LOAD";
+        case OP_ARGSTACK_PEEK: return "OP_ARGSTACK_PEEK";
+        case OP_ARGSTACK_UNLOAD: return "OP_ARGSTACK_UNLOAD";
         case OP_CALL: return "OP_CALL";
         case OP_DIVI: return "OP_DIVI";
         case OP_EMPTY_STRING: return "OP_EMPTY_STRING";
@@ -1471,11 +1483,9 @@ opcodestring(enum opcode code)
         case OP_HALT: return "OP_HALT";
         case OP_LEQ: return "OP_LEQ";
         case OP_LOC_ALINK_LONG: return "OP_LOC_ALINK_LONG";
-        case OP_LOCB_LONG: return "OP_LOCB_LONG";
         case OP_LOCF_LONG: return "OP_LOCF_LONG";
         case OP_LOCI_LONG: return "OP_LOCI_LONG";
         case OP_LOCS_LONG: return "OP_LOCS_LONG";
-        case OP_LOCVO_LONG: return "OP_LOCVO_LONG";
         case OP_LT: return "OP_LT";
         case OP_MULI: return "OP_MULI";
         case OP_NEWLINE: return "OP_NEWLINE";
@@ -1485,9 +1495,6 @@ opcodestring(enum opcode code)
         case OP_POP_TO_ASTACK: return "OP_POP_TO_ASTACK";
         case OP_POPV: return "OP_POPV";
         case OP_PUSH_BYTE: return "OP_PUSH_BYTE";
-        case OP_ARGSTACK_UNLOAD: return "OP_ARGSTACK_UNLOAD";
-        case OP_ARGSTACK_LOAD: return "OP_ARGSTACK_LOAD";
-        case OP_ARGSTACK_PEEK: return "OP_ARGSTACK_PEEK";
         case OP_READ: return "OP_READ";
         case OP_RETURN: return "OP_RETURN";
         case OP_SET_INDEX_LOCAL_LONG: return "OP_SET_INDEX_LOCAL_LONG";
@@ -1497,6 +1504,7 @@ opcodestring(enum opcode code)
         case OP_SKIPF_LONG: return "OP_SKIPF_LONG";
         case OP_SKIP_LONG: return "OP_SKIP_LONG";
         case OP_SUBI: return "OP_SUBI";
+        case OP_TRUE: return "OP_TRUE";
         case OP_WRITE: return "OP_WRITE";
         case OP_ZERO: return "OP_ZERO";
         }
@@ -1523,14 +1531,8 @@ disassemble_constant(struct bytecode *code, int ip, enum opcode loctype, int ind
                 case OP_LOCI_LONG:
                         value_print(v, VAL_INTEGER, VAL_INTEGER);
                         break;
-                case OP_LOCB_LONG:
-                        value_print(v, VAL_BOOLEAN, VAL_BOOLEAN);
-                        break;
                 case OP_LOCS_LONG:
                         value_print(v, VAL_STRING, VAL_STRING);
-                        break;
-                case OP_LOCVO_LONG:
-                        value_print(v, VAL_VOID, VAL_VOID);
                         break;
                 case OP_LOCF_LONG:
                         printf("\n");
@@ -1574,9 +1576,7 @@ disassemble_helper(struct bytecode *code, int indentation)
                 ip++;
                 switch (instruction) {
                 case OP_LOCI_LONG:
-                case OP_LOCB_LONG:
                 case OP_LOCS_LONG:
-                case OP_LOCVO_LONG:
                 case OP_LOC_ALINK_LONG:
                 case OP_LOCF_LONG:
                         ip = disassemble_constant(code, ip, instruction, indentation);

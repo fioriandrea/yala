@@ -215,9 +215,7 @@ vm_run(struct vm *vm)
         current = advance_ip(vm);
         switch (current) {
         case OP_LOCI_LONG:
-        case OP_LOCB_LONG:
         case OP_LOCS_LONG:
-        case OP_LOCVO_LONG:
         case OP_LOCF_LONG:
                 arglong0 = advance_long_ip(vm);
                 pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
@@ -293,6 +291,9 @@ vm_run(struct vm *vm)
                 break;
         case OP_FALSE:
                 pushv(vm, value_from_c_bool(0));
+                break;
+        case OP_TRUE:
+                pushv(vm, value_from_c_bool(1));
                 break;
         case OP_EMPTY_STRING:
                 pushv(vm, value_from_c_string(""));

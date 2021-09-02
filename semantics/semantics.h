@@ -27,10 +27,8 @@
 enum opcode
 {
         OP_LOCI_LONG, /* constants */
-        OP_LOCB_LONG,
         OP_LOCS_LONG,
         OP_LOCF_LONG,
-        OP_LOCVO_LONG,
         OP_LOC_ALINK_LONG,
 
         OP_PUSH_BYTE,
@@ -54,6 +52,7 @@ enum opcode
 
         OP_ZERO, /* constants */
         OP_ONE,
+        OP_TRUE,
         OP_FALSE,
         OP_EMPTY_STRING,
 

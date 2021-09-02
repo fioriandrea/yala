@@ -39,10 +39,6 @@ serialize_loc(struct bytecode *code, FILE *outfile, enum opcode op, uint16_t add
                 fprintf(outfile, "%d %d", VAL_INTEGER, val.integer);
                 fprintf(outfile, "\n");
                 break;
-        case OP_LOCB_LONG:
-                fprintf(outfile, "%d %d", VAL_BOOLEAN, val.boolean);
-                fprintf(outfile, "\n");
-                break;
         case OP_LOCS_LONG:
                 fprintf(outfile, "%d %.*s", VAL_STRING, val.string.length, val.string.str);
                 {char n = 0x00; fwrite(&n, sizeof(char), 1, outfile);}
@@ -50,10 +46,6 @@ serialize_loc(struct bytecode *code, FILE *outfile, enum opcode op, uint16_t add
                 break;
         case OP_LOC_ALINK_LONG:
                 fprintf(outfile, "%d %d", VAL_VECTOR, val.vector.size);
-                fprintf(outfile, "\n");
-                break;
-        case OP_LOCVO_LONG:
-                fprintf(outfile, "%d", VAL_VOID);
                 fprintf(outfile, "\n");
                 break;
         case OP_LOCF_LONG:
@@ -84,9 +76,7 @@ serialize_constants(struct bytecode *code, FILE *outfile)
                 ip++;
                 switch (op) {
                 case OP_LOCI_LONG:
-                case OP_LOCB_LONG:
                 case OP_LOCS_LONG:
-                case OP_LOCVO_LONG:
                 case OP_LOCF_LONG:
                 case OP_LOC_ALINK_LONG:
                         serialize_loc(code, outfile, op, read_address(code, &ip));
