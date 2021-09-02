@@ -157,11 +157,10 @@ value_print(union value v, enum value_type type, enum value_type base)
                 disassemble_helper(v.function.code, 1);
                 printf(")");
                 return;
-        case VAL_VOID:
-                printf("<VOID>");
-                return;
+        default:
+                printf("unreachable value type %d in value_print", type);
+                exit(100);
         }
-        printf("unreachable value type %d in value_print", type);
 }
 
 union value
@@ -276,10 +275,10 @@ values_equal(union value val0, union value val1, enum value_type type, enum valu
                                 return 0;
                 }
                 return 1;
-        case VAL_VOID:
-                return 1;
         case VAL_FUNCTION:
                 return 0;
+        default:
+                exit(100);
         }
         return 0;
 }

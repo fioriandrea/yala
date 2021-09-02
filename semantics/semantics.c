@@ -107,6 +107,10 @@ emit_statement(struct environment *env, struct tree_node *root)
                                 break;
                         }
                         struct semantic_type type = emit_expression(env, node);
+                        if (type.id == VAL_VOID) {
+                                semantic_error(env, node, "cannot print void type");
+                                break;
+                        }
                         emit_two_bytes(env, node, OP_PUSH_BYTE, type.id);
                         emit_two_bytes(env, node, OP_PUSH_BYTE, type.base); /* eventually remove */
                         node = node->next;
@@ -254,22 +258,20 @@ emit_expression(struct environment *env, struct tree_node *root)
                 }
                 emit_byte(env, root, OP_SUBI);
                 return inttype;
+        case NODE_EQ_EXPR:
         case NODE_NEQ_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
+                if (lefttype.id == VAL_VOID || righttype.id == VAL_VOID) {
+                        semantic_error(env, root, "cannot use void type in '==' expression");
+                }
                 if (!semantic_type_equal(lefttype, righttype)) {
                         semantic_error(env, root, "operands must be of the same type");
                 }
                 emit_three_bytes(env, root, OP_EQUA, lefttype.id, lefttype.base);
-                emit_byte(env, root, OP_NOT);
-                return booltype;
-        case NODE_EQ_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (!semantic_type_equal(lefttype, righttype)) {
-                        semantic_error(env, root, "operands must be of the same type");
+                if (root->type == NODE_NEQ_EXPR) {
+                        emit_byte(env, root, OP_NOT);
                 }
-                emit_three_bytes(env, root, OP_EQUA, lefttype.id, lefttype.base);
                 return booltype;
         case NODE_GREATEREQ_EXPR:
                 lefttype = emit_expression(env, root->left);
