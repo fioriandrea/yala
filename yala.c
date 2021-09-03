@@ -19,6 +19,7 @@ enum run_mode {
         RUN_RUN,
         RUN_COMPILE,
         RUN_EXECUTE,
+        RUN_HELP,
 };
 
 struct run_mode_string {
@@ -30,6 +31,7 @@ struct run_mode_string run_mode_strings[] = {
         {"run", RUN_RUN},
         {"compile", RUN_COMPILE},
         {"execute", RUN_EXECUTE},
+        {"help", RUN_HELP},
         {NULL, 0},
 };
 
@@ -43,11 +45,28 @@ static char *input_path = NULL;
 static char *output_path = NULL;
 
 static void
+print_help()
+{
+        printf("usage: yala <mode> [options] input_file\n\n"
+                "The modes are:\n\n"
+                "run                     compile and run a Yala program\n"
+                "compile                 compile a Yala program\n"
+                "execute                 execute a compiled Yala program\n"
+                "help                    prints this help\n\n"
+                "The options are:\n\n"
+                "--display-tree          show the syntax tree. Applicable in run and compile mode.\n"
+                "--display-bytecode      show the bytecode. Applicable in all modes.\n"
+                "--no-execute            do not execute the program. Applicable in run and compile mode.\n"
+                "--output out_file       outputs compiled code to out_file. Applicable in compile mode.\n"
+              );
+}
+
+static void
 parse_option(char *option, int *argcp, char ***argvp)
 {
         if (strcmp(option, "--display-tree") == 0 && (run_mode == RUN_RUN || run_mode == RUN_COMPILE)) {
                 display_tree = 1;
-        } else if (strcmp(option, "--display-bytecode") == 0) {
+        } else if (strcmp(option, "--display-bytecode") == 0 && (run_mode != RUN_HELP)) {
                 display_bytecode = 1;
         } else if (strcmp(option, "--no-execute") == 0 && (run_mode == RUN_RUN || run_mode == RUN_EXECUTE)) {
                 no_execute = 1;
@@ -66,7 +85,7 @@ parse_cli_arguments(int argc, char **argv)
         progname = *argv++;
         argc--;
         if (argc == 0) {
-                progerror("must supply mode\n");
+                print_help();
                 exit(1);
         }
         run_mode_str = *argv++;
@@ -255,6 +274,9 @@ main(int argc, char **argv)
                         break;
                 case RUN_EXECUTE:
                         run_execute(programtext, proglen);
+                        break;
+                case RUN_HELP:
+                        print_help();
                         break;
         }
 
