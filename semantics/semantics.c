@@ -553,6 +553,7 @@ environment_init(struct environment *env, struct environment *parent, struct byt
         env->panic = 0;
         break_likes_init(&env->break_likes);
         env->loopdepth = 0;
+        env->index = parent == NULL ? 0 : parent->index + 1;
         arg_types_init(&env->arg_types);
 }
 
@@ -1075,6 +1076,7 @@ forward_declare_function(struct environment *env, struct tree_node *root)
         struct semantic_type fntype = build_function_semantic_type(env, root);
         declare_local_in_env(env, function_name_node, fntype, LOCAL_PERM_R, NULL);
         union value fnval;
+        fnval.function.envindex = env->index + 1;
         fnval.function.code = NULL;
         emit_load_scalar_constant(env, root, VAL_FUNCTION, fnval);
         return env->code->constants.len - 1;
@@ -1083,7 +1085,6 @@ forward_declare_function(struct environment *env, struct tree_node *root)
 static void
 patch_module_declaration(struct environment *env, struct tree_node *root, int addr)
 {
-        struct tree_node *function_name_node = root->left;
         struct tree_node *function_types_node = root->right;
         struct tree_node *arg_decls_node = function_types_node->left;
         struct tree_node *return_type_node = function_types_node->right;
@@ -1101,8 +1102,6 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
         struct bytecode *subcode = malloc(sizeof(struct bytecode));
         bytecode_init(subcode);
         environment_init(&subenv, env, subcode);
-
-        declare_local_in_env(&subenv, function_name_node, fntype, LOCAL_PERM_R, NULL);
 
         for (struct tree_node *node = arg_decls_node; node != NULL; node = node->next) {
                 struct tree_node *p = node->left->child;

@@ -12,7 +12,7 @@ runtime_error(struct vm *vm, char *fmt, ...)
         vm->error = 1;
         va_list args;
         va_start(args, fmt);
-        struct lineinfo linfo = linelist_at(&vm->framese->code->lines, vm->framese->ip);
+        struct lineinfo linfo = linelist_at(&vm->framese->fn.code->lines, vm->framese->ip);
         fprintf(stderr, "runtime error ");
         fprintf(stderr, "[at %d:%d]: ", linfo.line, linfo.linepos);
         vfprintf(stderr, fmt, args);
@@ -26,24 +26,28 @@ vm_init(struct vm *vm, struct bytecode *code)
         vm->framese = vm->framestack;
         vm->argsp = vm->argstack;
         vm->argasp = vm->astack + STACK_MAX;
-        stack_frame_init(vm->framese, vm->stack, vm->stack, vm->astack, code);
+        struct value_function fn;
+        fn.code = code;
+        fn.envindex = 0;
+        stack_frame_init(vm->framese, vm->stack, vm->stack, vm->astack, fn);
         vm->error = 0;
 }
 
 void
-stack_frame_init(struct stack_frame *sf, union value *sp, union value *stackbase, union value *asp, struct bytecode *code)
+stack_frame_init(struct stack_frame *sf, union value *sp, union value *stackbase, union value *asp, struct value_function fn)
 {
         sf->ip = 0;
         sf->sp = sp;
         sf->stackbase = stackbase;
         sf->asp = asp;
-        sf->code = code;
+        sf->fn = fn;
 }
 
 #define VM_SP(vm) (vm->framese->sp)
 #define VM_STACKBASE(vm) (vm->framese->stackbase)
 #define VM_ASP(vm) (vm->framese->asp)
-#define VM_CODE(vm) (vm->framese->code)
+#define VM_CODE(vm) (vm->framese->fn.code)
+#define VM_ENVINDEX(vm) (vm->framese->fn.envindex)
 #define VM_IP(vm) (vm->framese->ip)
 
 static uint8_t
@@ -195,6 +199,10 @@ load_indexing_prelude(struct vm *vm, int *indicesbuff, int nindices, int *dimens
                 read_from_stack_to_int_buffer(vm, indicesbuff, nindices);
 }
 
+static void get_local_long(struct vm *vm);
+static void set_local_long(struct vm *vm);
+static void set_index_local_long(struct vm *vm, int *indicesbuff, int *dimensionsbuff);
+
 int
 vm_run(struct vm *vm)
 {
@@ -204,7 +212,6 @@ vm_run(struct vm *vm)
         enum opcode current;
         uint8_t arg0, arg1;
         uint16_t arglong0;
-        uint16_t offset, index;
 
         int indicesbuff[MAX_VECTOR_DIMENSIONS];
         int dimensionsbuff[MAX_VECTOR_DIMENSIONS];
@@ -218,7 +225,7 @@ vm_run(struct vm *vm)
         case OP_LOCS_LONG:
         case OP_LOCF_LONG:
                 arglong0 = advance_long_ip(vm);
-                pushv(vm, bytecode_constant_at(vm->framese->code, arglong0));
+                pushv(vm, bytecode_constant_at(VM_CODE(vm), arglong0));
                 break;
         case OP_PUSH_BYTE:
                 val0 = value_from_c_int(advance_ip(vm));
@@ -357,7 +364,7 @@ vm_run(struct vm *vm)
         case OP_CALL:
                 arg0 = advance_ip(vm); /* function arity */
                 val0 = peekv(vm, arg0 + 1);
-                stack_frame_init(vm->framese + 1, VM_SP(vm), VM_SP(vm) - arg0 - 1, VM_ASP(vm), val0.function.code);
+                stack_frame_init(vm->framese + 1, VM_SP(vm), VM_SP(vm) - arg0, VM_ASP(vm), val0.function);
                 vm->framese++;
                 break;
         case OP_SHIFT_ASTACKENT_TO_BASE:
@@ -397,40 +404,13 @@ vm_run(struct vm *vm)
                 }
                 break;
         case OP_GET_LOCAL_LONG:
-                offset = advance_long_ip(vm);
-                index = advance_long_ip(vm);
-                pushv(vm, vm->framese[-offset].stackbase[index]);
+                get_local_long(vm);
                 break;
         case OP_SET_LOCAL_LONG:
-                offset = advance_long_ip(vm);
-                index = advance_long_ip(vm);
-                vm->framese[-offset].stackbase[index] = popv(vm);
+                set_local_long(vm);
                 break;
         case OP_SET_INDEX_LOCAL_LONG:
-                offset = advance_long_ip(vm);
-                index = advance_long_ip(vm);
-                arg0 = advance_ip(vm); /* how many indices */
-                arg1 = advance_ip(vm); /* rank */
-                val0 = vm->framese[-offset].stackbase[index];
-
-                load_indexing_prelude(vm, indicesbuff, arg0, dimensionsbuff, arg1);
-
-
-                if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
-                        return 1;
-
-                val1 = popv(vm);
-                if (arg0 == arg1) {
-                        val0.vector.astackent[index_flattened(dimensionsbuff, indicesbuff, arg0)] = val1;
-                } else {
-                        for (int i = arg0; i < arg1; i++) {
-                                indicesbuff[i] = 0;
-                        }
-                        int start = index_flattened(dimensionsbuff, indicesbuff, arg1);
-                        for (int i = 0; i < val1.vector.size; i++) {
-                                val0.vector.astackent[start + i] = val1.vector.astackent[i];
-                        }
-                }
+                set_index_local_long(vm, indicesbuff, dimensionsbuff);
                 break;
         case OP_GET_INDEX:
                 arg0 = advance_ip(vm);
@@ -471,5 +451,55 @@ vm_run(struct vm *vm)
                 runtime_error(vm, "NOT IMPLEMENTED: %s\n", opcodestring(current));
                 return 1;
         }
+        }
+}
+
+static void
+get_local_long(struct vm *vm)
+{
+        uint16_t offset = advance_long_ip(vm);
+        uint16_t index = advance_long_ip(vm);
+        struct stack_frame *fp = offset == 0 ? vm->framese : vm->framestack + VM_ENVINDEX(vm);
+        pushv(vm, fp[-offset].stackbase[index]);
+}
+
+static void
+set_local_long(struct vm *vm)
+{
+        uint16_t offset = advance_long_ip(vm);
+        uint16_t index = advance_long_ip(vm);
+        struct stack_frame *fp = offset == 0 ? vm->framese : vm->framestack + VM_ENVINDEX(vm);
+        fp[-offset].stackbase[index] = popv(vm);
+}
+
+static void
+set_index_local_long(struct vm *vm, int *indicesbuff, int *dimensionsbuff)
+{
+        uint16_t offset = advance_long_ip(vm);
+        uint16_t index = advance_long_ip(vm);
+        uint8_t nindices = advance_ip(vm);
+        uint8_t rank = advance_ip(vm);
+        struct stack_frame *fp = offset == 0 ? vm->framese : vm->framestack + VM_ENVINDEX(vm);
+        union value val0 = fp[-offset].stackbase[index];
+
+        load_indexing_prelude(vm, indicesbuff, nindices, dimensionsbuff, rank);
+
+        if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, nindices)) {
+                runtime_error(vm, "index out of bounds");
+                return;
+        }
+
+        union value val1 = popv(vm);
+        if (nindices == rank) {
+                val0.vector.astackent[index_flattened(dimensionsbuff, indicesbuff, nindices)] = val1;
+        }
+        else {
+                for (int i = nindices; i < rank; i++) {
+                        indicesbuff[i] = 0;
+                }
+                int start = index_flattened(dimensionsbuff, indicesbuff, rank);
+                for (int i = 0; i < val1.vector.size; i++) {
+                        val0.vector.astackent[start + i] = val1.vector.astackent[i];
+                }
         }
 }

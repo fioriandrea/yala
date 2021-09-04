@@ -127,6 +127,7 @@ struct value_vector {
 
 struct value_function {
         struct bytecode *code;
+        int envindex;
 };
 
 union value {
@@ -231,6 +232,8 @@ struct environment {
         int loopdepth;
 
         struct arg_types arg_types;
+
+        int index;
 
         struct environment *parent;
 };
