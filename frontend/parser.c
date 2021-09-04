@@ -592,9 +592,8 @@ comp_expr(struct parser *ps)
 {
         struct tree_node *left = add_expr(ps);
         if (eat(ps, TOKEN_LESS) ||
-                eat(ps, TOKEN_LESS) ||
-                eat(ps, TOKEN_LESSEQ) || 
-                eat(ps, TOKEN_GREATER) || 
+                eat(ps, TOKEN_LESSEQ) ||
+                eat(ps, TOKEN_GREATER) ||
                 eat(ps, TOKEN_GREATEREQ) ||
                 eat(ps, TOKEN_EQ) ||
                 eat(ps, TOKEN_NEQ)

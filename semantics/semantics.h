@@ -8,7 +8,7 @@
 #define MAX_JUMP UINT8_MAX
 #define MAX_SKIP_LONG UINT16_MAX
 #define MAX_CONDITIONAL_LEN 400
-#define MAX_ARITY UINT8_MAX
+#define MAX_ARITY (UINT8_MAX + 1)
 
 #define LIST_DECLARE(name, type) \
         struct name \

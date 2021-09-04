@@ -308,23 +308,24 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_COND_EXPR:
                 return emit_cond_expression(env, root);
         case NODE_BOOLEAN_CONST:
-                if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
-                        semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
-                }
-                emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
-                return booltype;
         case NODE_INTGER_CONST:
-                if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
-                        semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
-                }
-                emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(root->value)));
-                return inttype;
         case NODE_STRING_CONST:
                 if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
-                emit_load_scalar_constant(env, root, VAL_STRING, value_from_token(root->value));
-                return strtype;
+                switch (root->type) {
+                case NODE_BOOLEAN_CONST:
+                        emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
+                        return booltype;
+                case NODE_INTGER_CONST:
+                        emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(root->value)));
+                        return inttype;
+                case NODE_STRING_CONST:
+                        emit_load_scalar_constant(env, root, VAL_STRING, value_from_token(root->value));
+                        return strtype;
+                default:
+                        exit(100);
+                }
         case NODE_VECTOR_CONST:
                 return emit_vector_constant(env, root, 0);
         case NODE_ID:
@@ -385,8 +386,6 @@ static void
 emit_byte(struct environment *env, struct tree_node *root, uint8_t byte)
 {
         struct bytecode *code = env->code;
-        if (env->error)
-                return;
         struct lineinfo linfo;
         linfo.line = root->value.line;
         linfo.linepos = root->value.linepos;
@@ -411,8 +410,6 @@ emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0,
 static void
 emit_constant(struct environment *env, struct tree_node *root, union value val)
 {
-        if (env->error)
-                return;
         struct bytecode *code = env->code;
         struct lineinfo linfo;
         linfo.line = root->value.line;
@@ -426,7 +423,7 @@ emit_load_scalar_constant(struct environment *env, struct tree_node *root, enum 
         enum opcode op;
         switch (type) {
                 case VAL_INTEGER: 
-                        if (val.integer < UINT8_MAX) {
+                        if (val.integer <= UINT8_MAX) {
                                 emit_two_bytes(env, root, OP_PUSH_BYTE, val.integer);
                                 return;
                         }
@@ -533,16 +530,16 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
         struct semantic_type inside = type_node_to_type(env, node->right);
         type.base = inside.base;
         if (inside.id == VAL_VECTOR) {
-                if (type.rank == MAX_VECTOR_DIMENSIONS - 1) {
-                        semantic_error(env, node, "maximum vector rank exceeded");
-                } else {
-                        type.size *= inside.size;
-                        for (int i = 0; i < inside.rank; i++) {
-                                type.dimensions[type.rank++] = inside.dimensions[i];
+                type.size *= inside.size;
+                for (int i = 0; i < inside.rank; i++) {
+                        if (type.rank == MAX_VECTOR_DIMENSIONS) {
+                                semantic_error(env, node, "maximum vector rank exceeded");
+                                break;
                         }
+                        type.dimensions[type.rank++] = inside.dimensions[i];
                 }
         }
-        return type; 
+        return type;
 }
 
 static void
@@ -753,7 +750,7 @@ emit_if_statement(struct environment *env, struct tree_node *root)
                 codelen = emit_unpatched_skip_long(env, child->left, OP_SKIPF_LONG);
                 emit_byte(env, child->left, OP_POPV);
                 emit_statement(env, child->right);
-                if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
+                if (toendp - toendlens == MAX_CONDITIONAL_LEN) {
                         semantic_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
                         return;
                 }
@@ -1041,6 +1038,10 @@ build_function_semantic_type(struct environment *env, struct tree_node *root)
                 struct tree_node *node = arg_decl->left->child;
                 struct semantic_type arg_type = type_node_to_type(env, arg_decl->right);
                 while (node != NULL) {
+                        if (fntype.rank == MAX_ARITY) {
+                                semantic_error(env, node, "max arity exceeded");
+                                break;
+                        }
                         struct semantic_type mod_arg_type = arg_type;
                         struct tree_node *mod_node = node->child;
                         mod_arg_type.modifier = ARG_MOD_IN;
@@ -1059,10 +1060,6 @@ build_function_semantic_type(struct environment *env, struct tree_node *root)
                         }
                         arg_types_push(&env->arg_types, mod_arg_type);
                         fntype.rank++;
-                        if (fntype.rank > MAX_ARITY) {
-                                semantic_error(env, node, "max arity exceeded");
-                                break;
-                        }
                         node = node->next;
                 }
         }
@@ -1348,7 +1345,7 @@ emit_cond_expression(struct environment *env, struct tree_node *root)
                         semantic_error(env, child, "conditional expression types must be the same");
                         return type0;
                 }
-                if (toendp - toendlens > MAX_CONDITIONAL_LEN) {
+                if (toendp - toendlens == MAX_CONDITIONAL_LEN) { 
                         semantic_error(env, child, "maximum if-elsif chain (%d) exceeded", MAX_CONDITIONAL_LEN);
                         return type0;
                 }
