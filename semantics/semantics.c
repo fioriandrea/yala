@@ -630,6 +630,8 @@ emit_variable_default(struct environment *env, struct tree_node *node, struct se
                 emit_byte(env, node, OP_EMPTY_STRING);
                 break;
         case VAL_VECTOR: {
+                emit_load_scalar_constant(env, node, VAL_INTEGER, value_from_c_int(type.size));
+                emit_byte(env, node, OP_ASTACK_SHIFT_UP);
                 emit_byte(env, node, OP_LOC_ALINK_LONG);
                 union value val;
                 val.vector.size = type.size;
@@ -1470,6 +1472,7 @@ opcodestring(enum opcode code)
         case OP_ARGSTACK_LOAD: return "OP_ARGSTACK_LOAD";
         case OP_ARGSTACK_PEEK: return "OP_ARGSTACK_PEEK";
         case OP_ARGSTACK_UNLOAD: return "OP_ARGSTACK_UNLOAD";
+        case OP_ASTACK_SHIFT_UP: return "OP_ASTACK_SHIFT_UP";
         case OP_CALL: return "OP_CALL";
         case OP_DIVI: return "OP_DIVI";
         case OP_EMPTY_STRING: return "OP_EMPTY_STRING";
