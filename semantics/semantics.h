@@ -167,6 +167,8 @@ uint8_t right_byte(uint16_t word);
 uint16_t join_bytes(uint8_t left, uint8_t right);
 struct semantic_type semantic_type_void();
 union value value_void();
+int is_add_overflow(int a, int x);
+int is_mult_overflow(int a, int x);
 
 struct lineinfo {
         int line;

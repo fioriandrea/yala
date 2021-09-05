@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -411,4 +412,16 @@ join_bytes(uint8_t left, uint8_t right)
         res = ((uint16_t) res) << 8;
         res = res | right;
         return res;
+}
+
+int
+is_add_overflow(int a, int x)
+{
+        return (((x > 0) && (a > INT_MAX - x)) || ((x < 0) && (a < INT_MIN - x)));
+}
+
+int
+is_mult_overflow(int a, int x)
+{
+        return (((a == -1) && (x == INT_MIN)) || ((x == -1) && (a == INT_MIN)) || (a > INT_MAX / x) || (a < INT_MIN / x));
 }

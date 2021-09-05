@@ -47,7 +47,7 @@ struct local environment_local_get(struct environment *env, struct local_positio
 static void local_init(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
 static void emit_read_type(struct environment *env, struct tree_node *node, struct semantic_type lhs_type);
 static int parse_boolean_token(struct token token);
-static int parse_integer_token(struct token token);
+static int parse_integer_token(struct environment *env, struct tree_node *current, struct token token);
 static struct semantic_type type_node_to_type(struct environment *env, struct tree_node *node);
 static struct semantic_type vector_type_node_to_type(struct environment *env, struct tree_node *node);
 static void semantic_error(struct environment *env, struct tree_node *root, char *fmt, ...);
@@ -319,7 +319,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                         emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
                         return booltype;
                 case NODE_INTGER_CONST:
-                        emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(root->value)));
+                        emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(env, root, root->value)));
                         return inttype;
                 case NODE_STRING_CONST:
                         emit_load_scalar_constant(env, root, VAL_STRING, value_from_token(root->value));
@@ -528,7 +528,7 @@ static struct semantic_type
 vector_type_node_to_type(struct environment *env, struct tree_node *node)
 {
         struct semantic_type type = semantic_type_scalar(VAL_VECTOR);
-        type.size = parse_integer_token(node->left->value);
+        type.size = parse_integer_token(env, node->left, node->left->value);
         if (type.size <= 0) {
                 semantic_error(env, node->left, "cannot use a value <= 0 as a vector dimension");
         }
@@ -539,11 +539,16 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
         struct semantic_type inside = type_node_to_type(env, node->right);
         type.base = inside.base;
         if (inside.id == VAL_VECTOR) {
-                type.size *= inside.size;
-                type.rank += inside.rank;
-                if (type.rank >= MAX_VECTOR_DIMENSIONS) {
-                        semantic_error(env, node, "maximum vector rank exceeded");
+                if (is_mult_overflow(type.size, inside.size)) {
+                        semantic_error(env, node, "integer overflow");
+                        return type;
                 }
+                type.size *= inside.size;
+                if (type.rank + inside.rank >= MAX_VECTOR_DIMENSIONS) {
+                        semantic_error(env, node, "maximum vector rank exceeded");
+                        return type;
+                }
+                type.rank += inside.rank;
         }
         return type;
 }
@@ -1462,11 +1467,19 @@ parse_boolean_token(struct token token)
 }
 
 static int
-parse_integer_token(struct token token)
+parse_integer_token(struct environment *env, struct tree_node *current, struct token token)
 {
         int res = 0;
         char *ptr = token.start;
         while (ptr - token.start < token.length) {
+                if (is_mult_overflow(res, 10)) {
+                        semantic_error(env, current, "integer overflow");
+                        break;
+                }
+                if (is_add_overflow(res * 10, *ptr - '0')) {
+                        semantic_error(env, current, "integer overflow");
+                        break;
+                }
                 res = res * 10 + *ptr - '0';
                 ptr++;
         }
