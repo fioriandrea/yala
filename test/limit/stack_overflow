@@ -1,0 +1,13 @@
+program main
+
+procedure foo()
+begin foo
+  foo(); # expect runtime error: Stack overflow.
+end foo;
+
+begin main
+
+
+foo();
+
+end main.

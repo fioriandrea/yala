@@ -1,0 +1,11 @@
+program main
+begin main
+
+for i = 0 to 100 do
+    writeln(i);
+    if i > 10 then
+        exit;
+    end;
+end;
+
+end main.

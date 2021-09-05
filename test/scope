@@ -1,0 +1,13 @@
+program main
+begin main
+
+
+i, j: integer;
+while j < 100 do
+    i: integer;
+    i = 100;
+    j = j + 1;
+end;
+writeln(i);
+
+end main.

@@ -1,0 +1,6 @@
+program main
+begin main
+
+-"s"; # semantic error: Operand must be a number.
+
+end main.

@@ -1,0 +1,10 @@
+program main
+begin main
+
+if (false) then
+  writeln(notDefined); # compile error
+end;
+
+writeln("ok");
+
+end main.

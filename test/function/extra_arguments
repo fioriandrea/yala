@@ -1,0 +1,12 @@
+program main
+procedure f(a, b: integer)
+begin f
+        writeln(a);
+        writeln(b);
+end f;
+begin main
+
+
+f(1, 2, 3, 4);
+
+end main.

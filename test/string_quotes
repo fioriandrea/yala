@@ -1,0 +1,7 @@
+program main
+begin main
+
+writeln("Hello 'world'");
+writeln('Hello "world"');
+
+end main.

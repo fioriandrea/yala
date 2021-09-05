@@ -1,0 +1,18 @@
+program main
+begin main
+
+i: integer;
+b: boolean;
+s: string;
+vi: vector [2] of integer;
+vb: vector [2] of boolean;
+vs: vector [2] of string;
+
+writeln(i);
+writeln(b);
+writeln(s);
+writeln(vi);
+writeln(vb);
+writeln(vs);
+
+end main.

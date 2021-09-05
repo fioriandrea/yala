@@ -1,0 +1,10 @@
+program main
+begin main
+
+writeln("(", "", ")");   # expect: ()
+writeln("a string"); # expect: a string
+
+# Non-ASCII.
+writeln("A~¶Þॐஃ"); # expect: A~¶Þॐஃ
+
+end main.

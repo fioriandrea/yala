@@ -1,0 +1,14 @@
+program main
+begin main
+
+# Tests that we correctly track the line info across multiline strings.
+a: string;
+
+a = "1
+2
+3
+";
+
+err; # # expect semantic error: Undefined variable 'err' at 12
+
+end main.

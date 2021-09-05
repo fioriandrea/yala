@@ -1,0 +1,13 @@
+program main
+begin main
+
+a: string;
+a = "1
+2
+3";
+writeln(a);
+# expect: 1
+# expect: 2
+# expect: 3
+
+end main.

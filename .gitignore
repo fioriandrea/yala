@@ -1,6 +1,5 @@
 *.o
 yala
-test
 .vscode
 automation
 vgcore.*

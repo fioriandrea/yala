@@ -1,0 +1,13 @@
+program main
+begin main
+
+i: integer;
+while i <= 100 do
+    writeln(i);
+    if i > 10 then
+        break;
+    end;
+    i = i + 1;
+end;
+
+end main.

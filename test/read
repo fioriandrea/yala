@@ -1,0 +1,8 @@
+program main
+begin main
+
+s: string;
+read(s);
+writeln("Hello, ", s);
+
+end main.
