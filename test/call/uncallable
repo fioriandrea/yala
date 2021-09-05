@@ -1,0 +1,13 @@
+program main
+begin main
+
+x: integer;
+x();
+s: string;
+s();
+v: vector [2] of string;
+v();
+b: boolean;
+b();
+
+end main.

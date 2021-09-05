@@ -1,0 +1,19 @@
+program main
+begin main
+
+i, j, res, k: integer;
+i = 2;
+j = 1;
+k = 2;
+res = 0;
+repeat
+    k: integer;
+    res = res + 1;
+    i = i - j;
+    k = 3;
+until i >= j;
+
+writeln(k);
+writeln(res);
+
+end main.

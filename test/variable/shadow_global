@@ -1,0 +1,13 @@
+program main
+begin main
+
+a: string;
+a = "global";
+if true then
+        a: string;
+        a = "shadow";
+        writeln(a); # expect: shadow
+end;
+writeln(a); # expect: global
+
+end main.

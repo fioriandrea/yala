@@ -8,7 +8,7 @@
 #define MAX_JUMP UINT8_MAX
 #define MAX_SKIP_LONG UINT16_MAX
 #define MAX_CONDITIONAL_LEN 400
-#define MAX_ARITY (UINT8_MAX + 1)
+#define MAX_ARITY UINT8_MAX
 
 #define LIST_DECLARE(name, type) \
         struct name \
@@ -67,6 +67,7 @@ enum opcode
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
         OP_POPA,
+        OP_ASTACK_SHIFT_UP,
 
         OP_GET_INDEX,
         OP_SET_INDEX_LOCAL_LONG,
@@ -104,12 +105,13 @@ enum value_type {
 struct semantic_type {
         enum value_type id;
         enum value_type base;
-        int dimensions[MAX_VECTOR_DIMENSIONS];
         int rank;
         int size;
         int param_types_start_index;
         int ret_type_index;
         struct arg_types *arg_types;
+        int dimensions_start_index;
+        struct intlist *dimensions;
         int modifier;
 };
 
@@ -151,6 +153,7 @@ int values_equal(union value val0, union value val1, enum value_type type, enum 
 int semantic_types_comparable(struct semantic_type lefttype, struct semantic_type righttype);
 struct semantic_type semantic_type_return_value(struct semantic_type type);
 struct semantic_type semantic_type_argument_at(struct semantic_type type, int i);
+int semantic_type_dimension_at(struct semantic_type type, int i);
 int compare_values(union value val0, union value val1, enum value_type type);
 int semantic_type_equal(struct semantic_type type0, struct semantic_type type1);
 struct semantic_type semantic_type_scalar(enum value_type vt);
@@ -164,6 +167,8 @@ uint8_t right_byte(uint16_t word);
 uint16_t join_bytes(uint8_t left, uint8_t right);
 struct semantic_type semantic_type_void();
 union value value_void();
+int is_add_overflow(int a, int x);
+int is_mult_overflow(int a, int x);
 
 struct lineinfo {
         int line;
@@ -237,6 +242,7 @@ struct environment {
         struct locals locals;
         struct arg_types arg_types;
         struct break_likes break_likes;
+        struct intlist dimensions;
 };
 
 void emit_statement(struct environment *env, struct tree_node *root);

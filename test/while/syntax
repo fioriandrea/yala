@@ -1,0 +1,45 @@
+program main
+begin main
+
+# Single-expression body.
+c: integer;
+c = 0;
+while c < 3 do
+        c = c + 1;
+        writeln(c);
+end;
+# expect: 1
+# expect: 2
+# expect: 3
+
+# Block body.
+a: integer;
+a = 0;
+while (a < 3) do
+  writeln(a);
+  a = a + 1;
+end;
+# expect: 0
+# expect: 1
+# expect: 2
+
+# Statement bodies.
+while false do
+        if true then
+                1;
+        else
+                2;
+        end;
+end;
+while (false) do
+        while (true) do
+                1;
+        end;
+end;
+while (false) do
+        for i = 1 to 100 do
+                1;
+        end;
+end;
+
+end main.

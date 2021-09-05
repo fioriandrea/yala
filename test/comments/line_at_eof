@@ -1,0 +1,7 @@
+program main
+begin main
+
+writeln("ok"); # expect: ok
+# comment
+
+end main.

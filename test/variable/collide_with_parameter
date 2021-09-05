@@ -1,0 +1,11 @@
+program main
+
+procedure foo(a: integer)
+begin foo
+  a: integer; # Error at 'a': Already a variable with this name in this scope.
+end foo;
+
+begin main
+
+
+end main.

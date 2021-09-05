@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -225,6 +226,12 @@ semantic_type_argument_at(struct semantic_type type, int i)
         return LIST_AT(type.arg_types, type.param_types_start_index + i);
 }
 
+int
+semantic_type_dimension_at(struct semantic_type type, int i)
+{
+        return LIST_AT(type.dimensions, i + type.dimensions_start_index);
+}
+
 struct semantic_type
 semantic_type_scalar(enum value_type vt)
 {
@@ -237,6 +244,8 @@ semantic_type_scalar(enum value_type vt)
         type.param_types_start_index = 0;
         type.ret_type_index = -1;
         type.arg_types = NULL;
+        type.dimensions = NULL;
+        type.dimensions_start_index = -1;
         type.modifier = ARG_MOD_IN;
         return type;
 }
@@ -298,11 +307,11 @@ semantic_type_equal(struct semantic_type type0, struct semantic_type type1)
 {
         if (type0.id != type1.id)
                 return 0;
-        if (type0.id == VAL_VOID)
+        if (type0.id == VAL_VOID || (type0.id != VAL_FUNCTION && type0.id != VAL_VECTOR))
                 return 1;
-        if (type0.id != VAL_FUNCTION)
-                return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
-
+        if (type0.id == VAL_VECTOR)
+                return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions->buffer + type0.dimensions_start_index, type1.dimensions->buffer + type1.dimensions_start_index, sizeof(int) * type0.rank) == 0;
+        /* functions */ 
         if (type0.rank != type1.rank)
                 return 0;
         for (int i = 0; i < type0.rank; i++) {
@@ -335,7 +344,7 @@ semantic_type_print(struct semantic_type type)
                 case VAL_VECTOR: {
                         printf(" ");
                         for (int i = 0; i < type.rank; i++) {
-                                printf("%d ", type.dimensions[i]);
+                                printf("%d ", semantic_type_dimension_at(type, i));
                         }
                         printf("of ");
                         semantic_type_print(semantic_type_scalar(type.base));
@@ -403,4 +412,16 @@ join_bytes(uint8_t left, uint8_t right)
         res = ((uint16_t) res) << 8;
         res = res | right;
         return res;
+}
+
+int
+is_add_overflow(int a, int x)
+{
+        return (((x > 0) && (a > INT_MAX - x)) || ((x < 0) && (a < INT_MIN - x)));
+}
+
+int
+is_mult_overflow(int a, int x)
+{
+        return (((a == -1) && (x == INT_MIN)) || ((x == -1) && (a == INT_MIN)) || (a > INT_MAX / x) || (a < INT_MIN / x));
 }

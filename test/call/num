@@ -1,0 +1,6 @@
+program main
+begin main
+
+123(); # expect parse error
+
+end main.

@@ -1,0 +1,11 @@
+program main
+
+procedure f()
+begin f
+end f;
+
+begin main
+
+f();
+
+end main.

@@ -1,0 +1,13 @@
+program main
+begin main
+
+v: string;
+v = "hello world";
+writeln(v);
+writeln(v < "hello");
+writeln(v < "aaaaaaaaaaaaa");
+writeln("a" < "b");
+writeln("a" > "b");
+writeln(1 < 2);
+
+end main.

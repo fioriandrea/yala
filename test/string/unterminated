@@ -1,0 +1,7 @@
+program main
+begin main
+
+# [line 2] Error: Unterminated string.
+"this string has no close quote
+
+end main.

@@ -1,0 +1,14 @@
+program main
+begin main
+
+writeln(true == true);    # expect: true
+writeln(true == false);   # expect: false
+writeln(false == true);   # expect: false
+writeln(false == false);  # expect: true
+
+writeln(true != true);    # expect: false
+writeln(true != false);   # expect: true
+writeln(false != true);   # expect: true
+writeln(false != false);  # expect: false
+
+end main.

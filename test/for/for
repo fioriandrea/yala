@@ -1,0 +1,17 @@
+program main
+begin main
+
+n, i: integer;
+i = 40;
+for i = 1 to 10 do
+    j: integer;
+    j = 20;
+    for j = 1 to 10 do
+        n = n + 1;
+    end;
+end;
+writeln(i);
+#writeln(j);
+writeln(n);
+
+end main.

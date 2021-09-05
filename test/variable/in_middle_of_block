@@ -1,0 +1,16 @@
+program main
+begin main
+
+if true then
+        a: integer;
+        a = 1;
+        writeln(a);
+        b: integer;
+        b = 1 + a;
+        writeln(b);
+        c: integer;
+        c = b + 1;
+        writeln(c);
+end;
+
+end main.

@@ -1,0 +1,9 @@
+program main
+begin main
+
+a: string;
+a = "1";
+a = "2";
+writeln(a); # expect: 2
+
+end main.
