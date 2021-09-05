@@ -243,6 +243,8 @@ semantic_type_scalar(enum value_type vt)
         type.param_types_start_index = 0;
         type.ret_type_index = -1;
         type.arg_types = NULL;
+        type.dimensions = NULL;
+        type.dimensions_start_index = -1;
         type.modifier = ARG_MOD_IN;
         return type;
 }
@@ -304,11 +306,11 @@ semantic_type_equal(struct semantic_type type0, struct semantic_type type1)
 {
         if (type0.id != type1.id)
                 return 0;
-        if (type0.id == VAL_VOID)
+        if (type0.id == VAL_VOID || (type0.id != VAL_FUNCTION && type0.id != VAL_VECTOR))
                 return 1;
-        if (type0.id != VAL_FUNCTION)
-                return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions, type1.dimensions, sizeof(int) * type0.rank) == 0;
-
+        if (type0.id == VAL_VECTOR)
+                return type0.base == type1.base && type0.rank == type1.rank && memcmp(type0.dimensions->buffer + type0.dimensions_start_index, type1.dimensions->buffer + type1.dimensions_start_index, sizeof(int) * type0.rank) == 0;
+        /* functions */ 
         if (type0.rank != type1.rank)
                 return 0;
         for (int i = 0; i < type0.rank; i++) {
