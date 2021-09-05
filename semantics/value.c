@@ -225,6 +225,12 @@ semantic_type_argument_at(struct semantic_type type, int i)
         return LIST_AT(type.arg_types, type.param_types_start_index + i);
 }
 
+int
+semantic_type_dimension_at(struct semantic_type type, int i)
+{
+        return LIST_AT(type.dimensions, i + type.dimensions_start_index);
+}
+
 struct semantic_type
 semantic_type_scalar(enum value_type vt)
 {
@@ -335,7 +341,7 @@ semantic_type_print(struct semantic_type type)
                 case VAL_VECTOR: {
                         printf(" ");
                         for (int i = 0; i < type.rank; i++) {
-                                printf("%d ", type.dimensions[i]);
+                                printf("%d ", semantic_type_dimension_at(type, i));
                         }
                         printf("of ");
                         semantic_type_print(semantic_type_scalar(type.base));

@@ -36,7 +36,7 @@ static void emit_popv(struct environment *env, struct tree_node *node, struct se
 static void emit_byte(struct environment *env, struct tree_node *root, uint8_t byte);
 static void emit_two_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1);
 static void emit_three_bytes(struct environment *env, struct tree_node *root, uint8_t byte0, uint8_t byte1, uint8_t byte2);
-static struct semantic_type compute_indexed_semantic_type(int index_count, struct semantic_type indexed_type);
+static struct semantic_type compute_indexed_semantic_type(struct environment *env, int index_count, struct semantic_type indexed_type);
 static struct semantic_type emit_indexing_prelude(struct environment *env, struct semantic_type indexed_type, struct tree_node *indexing_node);
 static int emit_unpatched_skip_long(struct environment *env, struct tree_node *root, enum opcode op);
 static int patch_skip_long(struct environment *env, struct tree_node *root, int codelen);
@@ -61,6 +61,7 @@ static void emit_set_local(struct environment *env, struct tree_node *lhs, struc
 static struct semantic_type emit_vector_variable_copy(struct environment *env, struct tree_node *varnode, struct local_position localpos);
 static struct semantic_type emit_called_expression(struct environment *env, struct tree_node *root);
 static struct semantic_type emit_id_expr(struct environment *env, struct tree_node *root, int array_by_ref);
+static void attach_dimensions(struct semantic_type *type, struct environment *env);
 
 struct bytecode *
 generate_bytecode(struct tree_node *parsetree)
@@ -516,6 +517,13 @@ type_node_to_type(struct environment *env, struct tree_node *node)
         return type;
 }
 
+static void
+attach_dimensions(struct semantic_type *type, struct environment *env)
+{
+        type->dimensions = &env->dimensions;
+        type->dimensions_start_index = LIST_LEN(&env->dimensions);
+}
+
 static struct semantic_type
 vector_type_node_to_type(struct environment *env, struct tree_node *node)
 {
@@ -524,19 +532,18 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
         if (type.size <= 0) {
                 semantic_error(env, node->left, "cannot use a value <= 0 as a vector dimension");
         }
-        type.dimensions[0] = type.size;
+        type.dimensions_start_index = LIST_LEN(&env->dimensions);
+        attach_dimensions(&type, env);
+        intlist_push(&env->dimensions, type.size);
         type.rank = 1;
 
         struct semantic_type inside = type_node_to_type(env, node->right);
         type.base = inside.base;
         if (inside.id == VAL_VECTOR) {
                 type.size *= inside.size;
-                for (int i = 0; i < inside.rank; i++) {
-                        if (type.rank == MAX_VECTOR_DIMENSIONS) {
-                                semantic_error(env, node, "maximum vector rank exceeded");
-                                break;
-                        }
-                        type.dimensions[type.rank++] = inside.dimensions[i];
+                type.rank += inside.rank;
+                if (type.rank >= MAX_VECTOR_DIMENSIONS) {
+                        semantic_error(env, node, "maximum vector rank exceeded");
                 }
         }
         return type;
@@ -556,6 +563,7 @@ environment_init(struct environment *env, struct environment *parent, struct byt
         locals_init(&env->locals);
         arg_types_init(&env->arg_types);
         break_likes_init(&env->break_likes);
+        intlist_init(&env->dimensions);
 }
 
 static void
@@ -564,6 +572,7 @@ environment_free(struct environment *env)
         locals_free(&env->locals);
         break_likes_free(&env->break_likes);
         arg_types_free(&env->arg_types);
+        intlist_free(&env->dimensions);
 }
 
 static int
@@ -879,10 +888,10 @@ emit_indexing_prelude(struct environment *env, struct semantic_type indexed_type
 
         /* emit dimensions */
         for (int i = 0; i < indexed_type.rank; i++) {
-                emit_load_scalar_constant(env, indexing_node, VAL_INTEGER, value_from_c_int(indexed_type.dimensions[i]));
+                emit_load_scalar_constant(env, indexing_node, VAL_INTEGER, value_from_c_int(semantic_type_dimension_at(indexed_type, i)));
         }
 
-        return compute_indexed_semantic_type(index_count, indexed_type);
+        return compute_indexed_semantic_type(env, index_count, indexed_type);
 }
 
 static struct semantic_type
@@ -1312,7 +1321,7 @@ compute_lhs_type(struct environment *env, struct tree_node *lhs)
                 for (struct tree_node *node = lhs->right; node != NULL; node = node->next) {
                         index_count++;
                 }
-                res = compute_indexed_semantic_type(index_count, loc.type);
+                res = compute_indexed_semantic_type(env, index_count, loc.type);
         } else {
                 res = loc.type;
         }
@@ -1385,7 +1394,7 @@ emit_indexing_expression(struct environment *env, struct tree_node *root)
 }
 
 static struct semantic_type
-compute_indexed_semantic_type(int index_count, struct semantic_type indexed_type)
+compute_indexed_semantic_type(struct environment *env, int index_count, struct semantic_type indexed_type)
 {
         struct semantic_type toret;
         if (index_count == indexed_type.rank) {
@@ -1394,11 +1403,11 @@ compute_indexed_semantic_type(int index_count, struct semantic_type indexed_type
                 toret = semantic_type_scalar(VAL_VECTOR);
                 toret.base = indexed_type.base;
                 toret.rank = indexed_type.rank - index_count;
-
+                attach_dimensions(&toret, env);
                 toret.size = 0;
                 for (int i = index_count; i < indexed_type.rank; i++) {
-                        toret.size += indexed_type.dimensions[i];
-                        toret.dimensions[i - index_count] = indexed_type.dimensions[i];
+                        toret.size += semantic_type_dimension_at(indexed_type, i);
+                        intlist_push(&env->dimensions, semantic_type_dimension_at(indexed_type, i));
                 }
         }
         return toret;
@@ -1414,13 +1423,14 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                 return toret;
         }
 
-        struct semantic_type type = emit_vector_constant(env, root->child, depth + 1);
         toret = semantic_type_scalar(VAL_VECTOR);
+        attach_dimensions(&toret, env);
+        intlist_push(&env->dimensions, 1);
+
+        struct semantic_type type = emit_vector_constant(env, root->child, depth + 1);
         toret.rank = type.rank + 1;
-        memcpy(toret.dimensions + 1, type.dimensions, MAX_VECTOR_DIMENSIONS);
         toret.base = type.base;
         toret.size = type.size;
-        toret.dimensions[0] = 1;
 
         for (struct tree_node *node = root->child->next; node != NULL; node = node->next) {
                 struct semantic_type current_type = emit_vector_constant(env, node, depth + 1);
@@ -1429,7 +1439,7 @@ emit_vector_constant(struct environment *env, struct tree_node *root, int depth)
                         break;
                 }
                 toret.size += type.size;
-                toret.dimensions[0]++;
+                toret.dimensions->buffer[toret.dimensions_start_index]++;
         } 
 
         if (depth != 0)
