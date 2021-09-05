@@ -1225,11 +1225,11 @@ emit_body(struct environment *env, struct tree_node *statements_node, struct tre
                         semantic_error(env, node, "mismatching return type in function");
                         return;
                 }
-                for (int i = arity; i >= 1; i--) {
-                        struct semantic_type arg_type = semantic_type_argument_at(fntype, i - 1);
+                for (int i = arity - 1; i >= 0; i--) {
+                        struct semantic_type arg_type = semantic_type_argument_at(fntype, i);
                         if ((arg_type.modifier & ARG_MOD_OUT) == 0)
                                 continue;
-                        emit_three_bytes(env, node, OP_ARGSTACK_LOAD, i, semantic_type_argument_at(fntype, i - 1).id == VAL_VECTOR);
+                        emit_three_bytes(env, node, OP_ARGSTACK_LOAD, i, semantic_type_argument_at(fntype, i).id == VAL_VECTOR);
                 }
                 if (return_type.id == VAL_VECTOR)
                         emit_byte(env, node, OP_SHIFT_ASTACKENT_TO_BASE);
