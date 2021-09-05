@@ -44,7 +44,7 @@ static void environment_init(struct environment *env, struct environment *parent
 static void environment_free(struct environment *env);
 static int environment_local_search(struct environment *env, struct token name, struct local_position *localpos);
 struct local environment_local_get(struct environment *env, struct local_position localpos);
-static void init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
+static void local_init(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms);
 static void emit_read_type(struct environment *env, struct tree_node *node, struct semantic_type lhs_type);
 static int parse_boolean_token(struct token token);
 static int parse_integer_token(struct token token);
@@ -464,8 +464,8 @@ patch_skip_long(struct environment *env, struct tree_node *root, int codelen)
         }
         jumplenfst = left_byte(jumplen);
         jumplenscn = right_byte(jumplen);
-        code->code.buffer[codelen - 2] = jumplenfst;
-        code->code.buffer[codelen - 1] = jumplenscn;
+        LIST_AT(&code->code, codelen - 2) = jumplenfst;
+        LIST_AT(&code->code, codelen - 1) = jumplenscn;
         return 1;
 }
 
@@ -485,8 +485,8 @@ emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen
         }
         jumplenfst = left_byte(jumplen);
         jumplenscn = right_byte(jumplen);
-        code->code.buffer[LIST_LEN(&code->code) - 2] = jumplenfst;
-        code->code.buffer[LIST_LEN(&code->code) - 1] = jumplenscn;
+        LIST_AT(&code->code, LIST_LEN(&code->code) - 2) = jumplenfst;
+        LIST_AT(&code->code ,LIST_LEN(&code->code) - 1) = jumplenscn;
         return 1;
 }
 
@@ -547,14 +547,15 @@ environment_init(struct environment *env, struct environment *parent, struct byt
 {
         env->code = code;
         env->parent = parent;
-        locals_init(&env->locals);
         env->error = 0;
         env->depth = 0;
         env->panic = 0;
-        break_likes_init(&env->break_likes);
         env->loopdepth = 0;
         env->index = parent == NULL ? 0 : parent->index + 1;
+
+        locals_init(&env->locals);
         arg_types_init(&env->arg_types);
+        break_likes_init(&env->break_likes);
 }
 
 static void
@@ -687,7 +688,7 @@ patch_breaks(struct environment *env, struct tree_node *root)
 }
 
 static void
-init_local(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms)
+local_init(struct local *loc, struct token name, struct semantic_type type, int depth, uint8_t perms)
 {
         loc->name = name;
         loc->type = type;
@@ -717,7 +718,7 @@ declare_local_in_env(struct environment *env, struct tree_node *current, struct 
                 return 0;
         }
         struct local topush;
-        init_local(&topush, current->value, type, env->depth, perms);
+        local_init(&topush, current->value, type, env->depth, perms);
         localpostmp = environment_local_push(env, topush);
         if (localpos)
                 *localpos = localpostmp;
@@ -972,7 +973,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         struct local_position incpos;
         emit_declare_local_default(env, assign->left, inttype, LOCAL_PERM_RW, &incpos);
         emit_assign_statement(env, assign);
-        env->locals.buffer[LIST_LEN(&env->locals) - 1].perms = LOCAL_PERM_R;
+        LIST_AT(&env->locals, LIST_LEN(&env->locals) - 1).perms = LOCAL_PERM_R;
 
         struct local_position forcondpos;
         emit_declare_local_default(env, &forcond_node, inttype, LOCAL_PERM_R, &forcondpos);
@@ -1143,7 +1144,7 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
 
         environment_free(&subenv);
 
-        env->code->constants.buffer[addr].function.code = subcode;
+        LIST_AT(&env->code->constants, addr).function.code = subcode;
 
         intlist_free(&addresses);
 }

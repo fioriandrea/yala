@@ -334,7 +334,7 @@ vm_run(struct vm *vm)
                 break;
         case OP_LOC_ALINK_LONG:
                 arglong0 = advance_long_ip(vm);
-                VM_CODE(vm)->constants.buffer[arglong0].vector.astackent = VM_ASP(vm);
+                LIST_AT(&VM_CODE(vm)->constants, arglong0).vector.astackent = VM_ASP(vm);
                 asp_move_up(vm, bytecode_constant_at(VM_CODE(vm), arglong0).vector.size);
                 pushv(vm, bytecode_constant_at(VM_CODE(vm), arglong0));
                 break;

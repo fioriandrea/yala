@@ -224,19 +224,19 @@ LIST_DECLARE(break_likes, struct break_like)
 
 struct environment {
         struct bytecode *code;
-        struct locals locals;
-        int depth;
         int error;
         int panic;
 
-        struct break_likes break_likes;
         int loopdepth;
 
-        struct arg_types arg_types;
-
+        int depth;
         int index;
-
         struct environment *parent;
+
+        /* memory pools */
+        struct locals locals;
+        struct arg_types arg_types;
+        struct break_likes break_likes;
 };
 
 void emit_statement(struct environment *env, struct tree_node *root);
