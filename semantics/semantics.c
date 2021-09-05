@@ -220,36 +220,30 @@ emit_expression(struct environment *env, struct tree_node *root)
                 emit_byte(env, root, OP_NOT);
                 return booltype;
         case NODE_PLUS_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
-                        semantic_error(env, root, "operands must be integers");
-                }
-                emit_byte(env, root, OP_ADDI);
-                return inttype;
         case NODE_MINUS_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
-                        semantic_error(env, root, "operands must be integers");
-                }
-                emit_byte(env, root, OP_SUBI);
-                return inttype;
         case NODE_TIMES_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
-                        semantic_error(env, root, "operands must be integers");
-                }
-                emit_byte(env, root, OP_MULI);
-                return inttype;
         case NODE_DIVIDE_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.id != VAL_INTEGER || righttype.id != VAL_INTEGER) {
                         semantic_error(env, root, "operands must be integers");
                 }
-                emit_byte(env, root, OP_DIVI);
+                switch (root->type) {
+                case NODE_PLUS_EXPR:
+                        emit_byte(env, root, OP_ADDI);
+                        break;
+                case NODE_MINUS_EXPR:
+                        emit_byte(env, root, OP_SUBI);
+                        break;
+                case NODE_TIMES_EXPR:
+                        emit_byte(env, root, OP_MULI);
+                        break;
+                case NODE_DIVIDE_EXPR:
+                        emit_byte(env, root, OP_DIVI);
+                        break;
+                default:
+                        exit(100);
+                }
                 return inttype;
         case NODE_NEG_EXPR:
                 emit_byte(env, root, OP_ZERO);
@@ -275,55 +269,42 @@ emit_expression(struct environment *env, struct tree_node *root)
                 }
                 return booltype;
         case NODE_GREATEREQ_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (!semantic_types_comparable(lefttype, righttype)) {
-                        semantic_error(env, root, "operands must be integers or strings");
-                }
-                emit_two_bytes(env, root, OP_GRTEQ, lefttype.id);
-                return booltype;
         case NODE_GREATER_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (!semantic_types_comparable(lefttype, righttype)) {
-                        semantic_error(env, root, "operands must be integers or strings");
-                }
-                emit_two_bytes(env, root, OP_GRT, lefttype.id);
-                return booltype;
         case NODE_LESSEQ_EXPR:
-                lefttype = emit_expression(env, root->left);
-                righttype = emit_expression(env, root->right);
-                if (!semantic_types_comparable(lefttype, righttype)) {
-                        semantic_error(env, root, "operands must be integers or strings");
-                }
-                emit_two_bytes(env, root, OP_LEQ, lefttype.id);
-                return booltype;
         case NODE_LESS_EXPR:
                 lefttype = emit_expression(env, root->left);
                 righttype = emit_expression(env, root->right);
                 if (!semantic_types_comparable(lefttype, righttype)) {
-                        semantic_error(env, root, "operands must be integers or strings");
+                        semantic_error(env, root, "operands must be both integers or both strings");
                 }
-                emit_two_bytes(env, root, OP_LT, lefttype.id);
+                switch (root->type) {
+                case NODE_GREATEREQ_EXPR:
+                        emit_two_bytes(env, root, OP_GRTEQ, lefttype.id);
+                        break;
+                case NODE_GREATER_EXPR:
+                        emit_two_bytes(env, root, OP_GRT, lefttype.id);
+                        break;
+                case NODE_LESSEQ_EXPR:
+                        emit_two_bytes(env, root, OP_LEQ, lefttype.id);
+                        break;
+                case NODE_LESS_EXPR:
+                        emit_two_bytes(env, root, OP_LT, lefttype.id);
+                        break;
+                default:
+                        exit(100);
+                }
                 return booltype;
         case NODE_COND_EXPR:
                 return emit_cond_expression(env, root);
         case NODE_BOOLEAN_CONST:
+                emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
+                return booltype;
         case NODE_INTGER_CONST:
+                emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(env, root, root->value)));
+                return inttype;
         case NODE_STRING_CONST:
-                switch (root->type) {
-                case NODE_BOOLEAN_CONST:
-                        emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
-                        return booltype;
-                case NODE_INTGER_CONST:
-                        emit_load_scalar_constant(env, root, VAL_INTEGER, value_from_c_int(parse_integer_token(env, root, root->value)));
-                        return inttype;
-                case NODE_STRING_CONST:
-                        emit_load_scalar_constant(env, root, VAL_STRING, value_from_token(root->value));
-                        return strtype;
-                default:
-                        exit(100);
-                }
+                emit_load_scalar_constant(env, root, VAL_STRING, value_from_token(root->value));
+                return strtype;
         case NODE_VECTOR_CONST:
                 return emit_vector_constant(env, root, 0);
         case NODE_ID:
