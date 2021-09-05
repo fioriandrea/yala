@@ -311,9 +311,6 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_BOOLEAN_CONST:
         case NODE_INTGER_CONST:
         case NODE_STRING_CONST:
-                if (LIST_LEN(&code->constants) >= MAX_CONSTANTS) {
-                        semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
-                }
                 switch (root->type) {
                 case NODE_BOOLEAN_CONST:
                         emit_load_scalar_constant(env, root, VAL_BOOLEAN, value_from_c_bool(parse_boolean_token(root->value)));
@@ -415,6 +412,9 @@ emit_constant(struct environment *env, struct tree_node *root, union value val)
         struct lineinfo linfo;
         linfo.line = root->value.line;
         linfo.linepos = root->value.linepos;
+        if (LIST_LEN(&code->constants) >= MAX_CONSTANTS) {
+                semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
+        }
         bytecode_write_constant(code, val, linfo);
 }
 
