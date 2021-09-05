@@ -11,8 +11,6 @@
         LIST_INIT(name, type) \
         LIST_PUSH(name, type) \
         LIST_POP(name, type) \
-        LIST_AT(name, type) \
-        LIST_LEN(name, type) \
         LIST_FREE(name, type)
 
 #define NEW_ARRAY_CAP(cap) ((cap) < 8 ? 8 : (cap) * 2)
@@ -43,18 +41,6 @@
         type name##_pop(struct name *list) \
         { \
                 return list->buffer[--list->len]; \
-        }
-
-#define LIST_AT(name, type) \
-        type name##_at(struct name *list, int i) \
-        { \
-                return list->buffer[i]; \
-        }
-
-#define LIST_LEN(name, type) \
-        int name##_len(struct name *list) \
-        { \
-                return list->len; \
         }
 
 #define LIST_FREE(name, type) \
@@ -116,19 +102,19 @@ bytecode_write_constant(struct bytecode *code, union value val, struct lineinfo 
 uint8_t
 bytecode_byte_at(struct bytecode *code, int i)
 {
-        return bytes_at(&code->code, i);
+        return LIST_AT(&code->code, i);
 }
 
 struct lineinfo
 bytecode_lineinfo_at(struct bytecode *code, int i)
 {
-        return linelist_at(&code->lines, i);
+        return LIST_AT(&code->lines, i);
 }
 
 union value
 bytecode_constant_at(struct bytecode *code, uint16_t address)
 {
-        return valuelist_at(&code->constants, address);
+        return LIST_AT(&code->constants, address);
 }
 
 void
@@ -230,13 +216,13 @@ value_from_c_string(char *str)
 struct semantic_type
 semantic_type_return_value(struct semantic_type type)
 {
-        return arg_types_at(type.arg_types, type.ret_type_index);
+        return LIST_AT(type.arg_types, type.ret_type_index);
 }
 
 struct semantic_type
 semantic_type_argument_at(struct semantic_type type, int i)
 {
-        return arg_types_at(type.arg_types, type.param_types_start_index + i);
+        return LIST_AT(type.arg_types, type.param_types_start_index + i);
 }
 
 struct semantic_type

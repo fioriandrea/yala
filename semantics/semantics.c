@@ -191,7 +191,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_AND_EXPR:
                 lefttype = emit_expression(env, root->left);
                 emit_three_bytes(env, root, OP_SKIPF_LONG, 0, 0);
-                codelen = bytes_len(&code->code);
+                codelen = LIST_LEN(&code->code);
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.id != VAL_BOOLEAN || righttype.id != VAL_BOOLEAN) {
@@ -203,7 +203,7 @@ emit_expression(struct environment *env, struct tree_node *root)
                 lefttype = emit_expression(env, root->left);
                 emit_three_bytes(env, root, OP_SKIPF_LONG, 0, 3);
                 emit_three_bytes(env, root, OP_SKIP_LONG, 0, 0);
-                codelen = bytes_len(&code->code);
+                codelen = LIST_LEN(&code->code);
                 emit_byte(env, root, OP_POPV);
                 righttype = emit_expression(env, root->right);
                 if (lefttype.id != VAL_BOOLEAN || righttype.id != VAL_BOOLEAN) {
@@ -310,7 +310,7 @@ emit_expression(struct environment *env, struct tree_node *root)
         case NODE_BOOLEAN_CONST:
         case NODE_INTGER_CONST:
         case NODE_STRING_CONST:
-                if (valuelist_len(&code->constants) >= MAX_CONSTANTS) {
+                if (LIST_LEN(&code->constants) >= MAX_CONSTANTS) {
                         semantic_error(env, root, "maximum number of constants (%d) exceeded", MAX_CONSTANTS);
                 }
                 switch (root->type) {
@@ -446,7 +446,7 @@ static int
 emit_unpatched_skip_long(struct environment *env, struct tree_node *root, enum opcode op)
 {
     emit_three_bytes(env, root, op, 0, 0);
-    return bytes_len(&env->code->code);
+    return LIST_LEN(&env->code->code);
 }
 
 static int
@@ -457,7 +457,7 @@ patch_skip_long(struct environment *env, struct tree_node *root, int codelen)
         struct bytecode *code = env->code;
         int jumplen;
         uint8_t jumplenfst, jumplenscn;
-        jumplen = bytes_len(&code->code) - codelen;
+        jumplen = LIST_LEN(&code->code) - codelen;
         if (jumplen > MAX_SKIP_LONG) {
                 semantic_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
                 return 0;
@@ -478,15 +478,15 @@ emit_skip_back_long(struct environment *env, struct tree_node *root, int codelen
         struct bytecode *code = env->code;
         int jumplen;
         uint8_t jumplenfst, jumplenscn;
-        jumplen = bytes_len(&code->code) - codelen;
+        jumplen = LIST_LEN(&code->code) - codelen;
         if (jumplen > MAX_SKIP_LONG) {
                 semantic_error(env, root, "max skip size (%d) exceeded", MAX_SKIP_LONG);
                 return 0;
         }
         jumplenfst = left_byte(jumplen);
         jumplenscn = right_byte(jumplen);
-        code->code.buffer[bytes_len(&code->code) - 2] = jumplenfst;
-        code->code.buffer[bytes_len(&code->code) - 1] = jumplenscn;
+        code->code.buffer[LIST_LEN(&code->code) - 2] = jumplenfst;
+        code->code.buffer[LIST_LEN(&code->code) - 1] = jumplenscn;
         return 1;
 }
 
@@ -570,8 +570,8 @@ environment_local_search_helper(struct environment *env, struct token name, stru
         if (env == NULL)
                 return 0;
         int i;
-        for (i = locals_len(&env->locals) - 1; i >= 0; i--) {
-                if (token_equal(locals_at(&env->locals, i).name, name)) {
+        for (i = LIST_LEN(&env->locals) - 1; i >= 0; i--) {
+                if (token_equal(LIST_AT(&env->locals, i).name, name)) {
                         break;
                 }
         }
@@ -594,7 +594,7 @@ struct local
 environment_local_get(struct environment *env, struct local_position localpos)
 {
         if (localpos.offset == 0)
-                return locals_at(&env->locals, localpos.index);
+                return LIST_AT(&env->locals, localpos.index);
         localpos.offset--;
         return environment_local_get(env->parent, localpos);
 }
@@ -608,8 +608,8 @@ emit_push_scope(struct environment *env, struct tree_node *node)
 static void
 emit_pop_scope(struct environment *env, struct tree_node *node)
 {
-        while (locals_len(&env->locals) > 0 && locals_at(&env->locals, locals_len(&env->locals) - 1).depth == env->depth) {
-                emit_popv(env, node, locals_at(&env->locals, locals_len(&env->locals) - 1).type);
+        while (LIST_LEN(&env->locals) > 0 && LIST_AT(&env->locals, LIST_LEN(&env->locals) - 1).depth == env->depth) {
+                emit_popv(env, node, LIST_AT(&env->locals, LIST_LEN(&env->locals) - 1).type);
                 locals_pop(&env->locals);
         }
         env->depth--;
@@ -659,7 +659,7 @@ push_loop(struct environment *env)
 static void
 pop_loop(struct environment *env)
 {
-        while (break_likes_len(&env->break_likes) > 0 && break_likes_at(&env->break_likes, break_likes_len(&env->break_likes) - 1).loopdepth == env->loopdepth) {
+        while (LIST_LEN(&env->break_likes) > 0 && LIST_AT(&env->break_likes, LIST_LEN(&env->break_likes) - 1).loopdepth == env->loopdepth) {
                 break_likes_pop(&env->break_likes);
         }
         env->loopdepth--;
@@ -681,8 +681,8 @@ emit_break(struct environment *env, struct tree_node *node)
 static void
 patch_breaks(struct environment *env, struct tree_node *root)
 {
-        for (int i = break_likes_len(&env->break_likes) - 1; i >= 0 && break_likes_at(&env->break_likes, i).loopdepth == env->loopdepth; i--) {
-                patch_skip_long(env, root, break_likes_at(&env->break_likes, i).codelen);
+        for (int i = LIST_LEN(&env->break_likes) - 1; i >= 0 && LIST_AT(&env->break_likes, i).loopdepth == env->loopdepth; i--) {
+                patch_skip_long(env, root, LIST_AT(&env->break_likes, i).codelen);
         }
 }
 
@@ -707,7 +707,7 @@ environment_local_push(struct environment *env, struct local topush)
 static int
 declare_local_in_env(struct environment *env, struct tree_node *current, struct semantic_type type, uint8_t perms, struct local_position *localpos)
 {
-        if (locals_len(&env->locals) == MAX_LOCALS) {
+        if (LIST_LEN(&env->locals) == MAX_LOCALS) {
                 semantic_error(env, current, "maximum number of local variables exceeded");
                 return 0;
         }
@@ -776,7 +776,7 @@ emit_while_statement(struct environment *env, struct tree_node *root)
         int codelen, startlen;
         struct semantic_type type1 = semantic_type_scalar(VAL_INTEGER);
         struct bytecode *code = env->code;
-        startlen = bytes_len(&code->code);
+        startlen = LIST_LEN(&code->code);
         type1 = emit_expression(env, root->left);
         if (type1.id != VAL_BOOLEAN) {
                 semantic_error(env, root->left, "while condition must be boolean");
@@ -802,7 +802,7 @@ emit_repeat_statement(struct environment *env, struct tree_node *root)
         int startlen;
         struct semantic_type type1 = semantic_type_scalar(VAL_INTEGER);
         struct bytecode *code = env->code;
-        startlen = bytes_len(&code->code);
+        startlen = LIST_LEN(&code->code);
 
         emit_statement(env, root->left);
 
@@ -972,7 +972,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
         struct local_position incpos;
         emit_declare_local_default(env, assign->left, inttype, LOCAL_PERM_RW, &incpos);
         emit_assign_statement(env, assign);
-        env->locals.buffer[locals_len(&env->locals) - 1].perms = LOCAL_PERM_R;
+        env->locals.buffer[LIST_LEN(&env->locals) - 1].perms = LOCAL_PERM_R;
 
         struct local_position forcondpos;
         emit_declare_local_default(env, &forcond_node, inttype, LOCAL_PERM_R, &forcondpos);
@@ -986,7 +986,7 @@ emit_for_statement(struct environment *env, struct tree_node *root)
 
         int codelen, startlen;
         struct bytecode *code = env->code;
-        startlen = bytes_len(&code->code);
+        startlen = LIST_LEN(&code->code);
         emit_op_local_long(env, root, OP_GET_LOCAL_LONG, incpos);
         emit_op_local_long(env, root, OP_GET_LOCAL_LONG, forcondpos);
 
@@ -1031,8 +1031,8 @@ build_function_semantic_type(struct environment *env, struct tree_node *root)
         fntype.arg_types = &env->arg_types;
         fntype.ret_type_index = -1;
         arg_types_push(&env->arg_types, type_node_to_type(env, return_type_node));
-        fntype.ret_type_index = arg_types_len(&env->arg_types) - 1;
-        fntype.param_types_start_index = arg_types_len(&env->arg_types);
+        fntype.ret_type_index = LIST_LEN(&env->arg_types) - 1;
+        fntype.param_types_start_index = LIST_LEN(&env->arg_types);
 
         fntype.rank = 0;
         for (struct tree_node *arg_decl = arg_decls_node; arg_decl != NULL; arg_decl = arg_decl->next) {
@@ -1124,10 +1124,10 @@ patch_module_declaration(struct environment *env, struct tree_node *root, int ad
                 for (struct tree_node *node = mod_decls_node; node != NULL; node = node->next) {
                         switch (node->type) {
                                 case NODE_PROCEDURE_DECL:
-                                        patch_procedure_declaration(&subenv, node, intlist_at(&addresses, i++));
+                                        patch_procedure_declaration(&subenv, node, LIST_AT(&addresses, i++));
                                         break;
                                 case NODE_FUNCTION_DECL:
-                                        patch_function_declaration(&subenv, node, intlist_at(&addresses, i++));
+                                        patch_function_declaration(&subenv, node, LIST_AT(&addresses, i++));
                                         break;
                                 default:
                                         exit(100);
@@ -1513,14 +1513,14 @@ opcodestring(enum opcode code)
 static void
 disassemble_lineinfo(struct bytecode *code, int ip)
 {
-        printf("[%d:%d]", linelist_at(&code->lines, ip - 1).line, linelist_at(&code->lines, ip - 1).linepos);
+        printf("[%d:%d]", LIST_AT(&code->lines, ip - 1).line, LIST_AT(&code->lines, ip - 1).linepos);
 }
 
 static int
 disassemble_constant(struct bytecode *code, int ip, enum opcode loctype, int indentation)
 {
-        uint8_t constantaddr_left = bytes_at(&code->code, ip++);
-        uint8_t constantaddr_right = bytes_at(&code->code, ip++);
+        uint8_t constantaddr_left = LIST_AT(&code->code, ip++);
+        uint8_t constantaddr_right = LIST_AT(&code->code, ip++);
         uint16_t constantaddr = join_bytes(constantaddr_left, constantaddr_right);
         printf("%d ", constantaddr);
         union value v = bytecode_constant_at(code, constantaddr);
@@ -1547,7 +1547,7 @@ disassemble_constant(struct bytecode *code, int ip, enum opcode loctype, int ind
 static int
 disassemble_argument(struct bytecode *code, int ip)
 {
-        uint8_t arg = bytes_at(&code->code, ip++);
+        uint8_t arg = LIST_AT(&code->code, ip++);
         printf("%d ", arg);
         return ip;
 }
@@ -1555,8 +1555,8 @@ disassemble_argument(struct bytecode *code, int ip)
 static int
 disassemble_argument_long(struct bytecode *code, int ip)
 {
-        uint8_t arg0 = bytes_at(&code->code, ip++);
-        uint8_t arg1 = bytes_at(&code->code, ip++);
+        uint8_t arg0 = LIST_AT(&code->code, ip++);
+        uint8_t arg1 = LIST_AT(&code->code, ip++);
         printf("%d ", ((unsigned) arg0 << 8) | arg1);
         return ip;
 }
@@ -1565,11 +1565,11 @@ void
 disassemble_helper(struct bytecode *code, int indentation)
 {
         int ip = 0;
-        while (code && ip < bytes_len(&code->code)) {
+        while (code && ip < LIST_LEN(&code->code)) {
                 for (int i = 0; i < indentation; i++) {
                         printf("\t");
                 }
-                uint8_t instruction = bytes_at(&code->code, ip);
+                uint8_t instruction = LIST_AT(&code->code, ip);
                 printf("%d: %s ", ip, opcodestring(instruction));
                 ip++;
                 switch (instruction) {

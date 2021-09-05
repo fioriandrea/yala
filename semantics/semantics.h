@@ -20,9 +20,10 @@
         void name##_init(struct name *list); \
         int name##_push(struct name *list, type data); \
         type name##_pop(struct name *list); \
-        type name##_at(struct name *list, int i); \
-        int name##_len(struct name *list); \
         void name##_free(struct name *list);
+
+#define LIST_LEN(listp) ((listp)->len)
+#define LIST_AT(listp, i) ((listp)->buffer[i])
 
 enum opcode
 {

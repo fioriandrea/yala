@@ -12,7 +12,7 @@ runtime_error(struct vm *vm, char *fmt, ...)
         vm->error = 1;
         va_list args;
         va_start(args, fmt);
-        struct lineinfo linfo = linelist_at(&vm->framese->fn.code->lines, vm->framese->ip);
+        struct lineinfo linfo = LIST_AT(&vm->framese->fn.code->lines, vm->framese->ip);
         fprintf(stderr, "runtime error ");
         fprintf(stderr, "[at %d:%d]: ", linfo.line, linfo.linepos);
         vfprintf(stderr, fmt, args);

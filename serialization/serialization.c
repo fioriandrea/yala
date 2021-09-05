@@ -22,9 +22,9 @@ serialize_bytecode(struct bytecode *code, FILE *outfile)
 static void
 serialize_code(struct bytecode *code, FILE *outfile)
 {
-        for (int ip = 0; ip < bytes_len(&code->code); ip++) {
-                uint8_t byte = bytes_at(&code->code, ip);
-                struct lineinfo linfo = linelist_at(&code->lines, ip);
+        for (int ip = 0; ip < LIST_LEN(&code->code); ip++) {
+                uint8_t byte = LIST_AT(&code->code, ip);
+                struct lineinfo linfo = LIST_AT(&code->lines, ip);
                 fprintf(outfile, "%s%d(%d:%d)", ip == 0 ? "" : " ", byte, linfo.line, linfo.linepos);
         }
         fprintf(outfile, "\n");
@@ -33,7 +33,7 @@ serialize_code(struct bytecode *code, FILE *outfile)
 static void
 serialize_loc(struct bytecode *code, FILE *outfile, enum opcode op, uint16_t address)
 {
-        union value val = valuelist_at(&code->constants, address);
+        union value val = LIST_AT(&code->constants, address);
         switch (op) {
         case OP_LOCI_LONG:
                 fprintf(outfile, "%d %d", VAL_INTEGER, val.integer);
@@ -61,9 +61,9 @@ serialize_loc(struct bytecode *code, FILE *outfile, enum opcode op, uint16_t add
 static uint16_t
 read_address(struct bytecode *code, int *ip)
 {
-        uint8_t left = bytes_at(&code->code, *ip);
+        uint8_t left = LIST_AT(&code->code, *ip);
         (*ip)++;
-        uint8_t right = bytes_at(&code->code, *ip);
+        uint8_t right = LIST_AT(&code->code, *ip);
         (*ip)++;
         return join_bytes(left, right);
 }
@@ -71,8 +71,8 @@ read_address(struct bytecode *code, int *ip)
 static void
 serialize_constants(struct bytecode *code, FILE *outfile)
 {
-        for (int ip = 0; ip < bytes_len(&code->code); ) {
-                uint8_t op = bytes_at(&code->code, ip);
+        for (int ip = 0; ip < LIST_LEN(&code->code); ) {
+                uint8_t op = LIST_AT(&code->code, ip);
                 ip++;
                 switch (op) {
                 case OP_LOCI_LONG:
