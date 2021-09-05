@@ -72,7 +72,7 @@ static void
 serialize_constants(struct bytecode *code, FILE *outfile)
 {
         for (int ip = 0; ip < LIST_LEN(&code->code); ) {
-                uint8_t op = LIST_AT(&code->code, ip);
+                enum opcode op = LIST_AT(&code->code, ip);
                 ip++;
                 switch (op) {
                 case OP_LOCI_LONG:
@@ -107,6 +107,8 @@ serialize_constants(struct bytecode *code, FILE *outfile)
                         break;
                 case OP_SET_INDEX_LOCAL_LONG:
                         ip += 6;
+                        break;
+                default:
                         break;
                 }
         }

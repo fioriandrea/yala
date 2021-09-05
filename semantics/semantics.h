@@ -67,6 +67,7 @@ enum opcode
 
         OP_POP_TO_ASTACK, /* array stack manipulation */
         OP_POPA,
+        OP_ASTACK_SHIFT_UP,
 
         OP_GET_INDEX,
         OP_SET_INDEX_LOCAL_LONG,
