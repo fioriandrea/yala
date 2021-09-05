@@ -202,6 +202,7 @@ load_indexing_prelude(struct vm *vm, int *indicesbuff, int nindices, int *dimens
 static void get_local_long(struct vm *vm);
 static void set_local_long(struct vm *vm);
 static void set_index_local_long(struct vm *vm, int *indicesbuff, int *dimensionsbuff);
+static void get_index(struct vm *vm, int *indicesbuff, int *dimensionsbuff);
 
 int
 vm_run(struct vm *vm)
@@ -413,37 +414,7 @@ vm_run(struct vm *vm)
                 set_index_local_long(vm, indicesbuff, dimensionsbuff);
                 break;
         case OP_GET_INDEX:
-                arg0 = advance_ip(vm);
-                arg1 = advance_ip(vm);
-
-                load_indexing_prelude(vm, indicesbuff, arg0, dimensionsbuff, arg1);
-
-                val0 = popv(vm);
-
-                if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, arg0))
-                        return 1;
-
-                if (arg0 == arg1) {
-                        union value from_main_vector = val0.vector.astackent[index_flattened(dimensionsbuff, indicesbuff, arg0)];
-                        pushv(vm, from_main_vector);
-                } else {
-                        for (int i = arg0; i < arg1; i++) {
-                                indicesbuff[i] = 0;
-                        }
-                        int start = index_flattened(dimensionsbuff, indicesbuff, arg1);
-                        int count = 1;
-                        for (int i = arg0; i < arg1; i++) {
-                                count *= dimensionsbuff[i];
-                        }
-                        for (int i = 0; i < count; i++) {
-                                union value from_main_vector = val0.vector.astackent[start + i];
-                                pusha(vm, from_main_vector);
-                        }
-                        union value result_value;
-                        result_value.vector.size = count;
-                        result_value.vector.astackent = VM_ASP(vm) - count;
-                        pushv(vm, result_value);
-                }
+                get_index(vm, indicesbuff, dimensionsbuff);
                 break;
         case OP_HALT:
                 return 0;
@@ -501,5 +472,43 @@ set_index_local_long(struct vm *vm, int *indicesbuff, int *dimensionsbuff)
                 for (int i = 0; i < val1.vector.size; i++) {
                         val0.vector.astackent[start + i] = val1.vector.astackent[i];
                 }
+        }
+}
+
+static void
+get_index(struct vm *vm, int *indicesbuff, int *dimensionsbuff)
+{
+        uint8_t nindices = advance_ip(vm);
+        uint8_t rank = advance_ip(vm);
+
+        load_indexing_prelude(vm, indicesbuff, nindices, dimensionsbuff, rank);
+
+        union value val0 = popv(vm);
+
+        if (is_out_of_bounds(vm, indicesbuff, dimensionsbuff, nindices)) {
+                runtime_error(vm, "index out of bounds");
+                return;
+        }
+
+        if (nindices == rank) {
+                union value from_main_vector = val0.vector.astackent[index_flattened(dimensionsbuff, indicesbuff, nindices)];
+                pushv(vm, from_main_vector);
+        } else {
+                for (int i = nindices; i < rank; i++) {
+                        indicesbuff[i] = 0;
+                }
+                int start = index_flattened(dimensionsbuff, indicesbuff, rank);
+                int count = 1;
+                for (int i = nindices; i < rank; i++) {
+                        count *= dimensionsbuff[i];
+                }
+                for (int i = 0; i < count; i++) {
+                        union value from_main_vector = val0.vector.astackent[start + i];
+                        pusha(vm, from_main_vector);
+                }
+                union value result_value;
+                result_value.vector.size = count;
+                result_value.vector.astackent = VM_ASP(vm) - count;
+                pushv(vm, result_value);
         }
 }
