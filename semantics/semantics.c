@@ -532,7 +532,6 @@ vector_type_node_to_type(struct environment *env, struct tree_node *node)
         if (type.size <= 0) {
                 semantic_error(env, node->left, "cannot use a value <= 0 as a vector dimension");
         }
-        type.dimensions_start_index = LIST_LEN(&env->dimensions);
         attach_dimensions(&type, env);
         intlist_push(&env->dimensions, type.size);
         type.rank = 1;
