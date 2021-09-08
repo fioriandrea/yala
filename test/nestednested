@@ -2,7 +2,7 @@ program main
         n: integer;
 
         procedure a()
-                procedure b()
+                procedure b(n: integer)
                 begin b
                         c();
                 end b;
@@ -12,7 +12,7 @@ program main
                         n = 10;
                 end c;
         begin a
-                b();
+                b(0);
         end a;
 
 begin main
