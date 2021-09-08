@@ -1,0 +1,26 @@
+program main
+
+n: integer;
+
+function reminder(num, divisor: integer): integer
+begin reminder
+        num - divisor * (num / divisor)
+end reminder;
+
+begin main
+
+n = 100;
+
+for i = 1 to n do
+        if reminder(i, 15) == 0 then
+                writeln("FizzBuzz");
+        elsif reminder(i, 3) == 0 then
+                writeln("Fizz");
+        elsif reminder(i, 5) == 0 then
+                writeln("Buzz");
+        else
+                writeln(i);
+        end;
+end;
+
+end main.
