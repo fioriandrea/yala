@@ -1,0 +1,21 @@
+program main
+        n: integer;
+
+        procedure a()
+                procedure b()
+                begin b
+                        c();
+                end b;
+
+                procedure c()
+                begin c
+                        n = 10;
+                end c;
+        begin a
+                b();
+        end a;
+
+begin main
+        a();
+        writeln(n);
+end main.
