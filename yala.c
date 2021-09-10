@@ -100,6 +100,10 @@ parse_cli_arguments(int argc, char **argv)
                         break;
                 }
         }
+        if (run_mode == RUN_HELP) {
+                print_help();
+                exit(0);
+        }
         while (argc > 0 && (*argv)[0] == '-' && (*argv)[1] == '-') {
                 char *option = *argv++;
                 argc--;
@@ -276,7 +280,6 @@ main(int argc, char **argv)
                         run_execute(programtext, proglen);
                         break;
                 case RUN_HELP:
-                        print_help();
                         break;
         }
 

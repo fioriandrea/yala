@@ -348,6 +348,10 @@ emit_id_expr(struct environment *env, struct tree_node *root, int array_by_ref)
 static void
 emit_op_local_long(struct environment *env, struct tree_node *node, enum opcode op, struct local_position localpos)
 {
+        if (localpos.offset > MAX_LOCAL_OFFSET) {
+                semantic_error(env, node, "maximum local offset exceeded");
+                return;
+        }
         emit_three_bytes(env, node, op, left_byte(localpos.offset), right_byte(localpos.offset));
         emit_two_bytes(env, node, left_byte(localpos.index), right_byte(localpos.index));
 }
