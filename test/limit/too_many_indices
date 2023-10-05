@@ -1,0 +1,11 @@
+program main
+begin main
+
+v: vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2] of vector [2]
+#of vector [2]
+#vector [2] of
+#vector [2] of
+of integer;
+writeln(v);
+
+end main.

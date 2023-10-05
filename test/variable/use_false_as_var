@@ -1,0 +1,7 @@
+program main
+begin main
+
+# [line 2] Error at 'false': Expect variable name.
+false: string;
+
+end main.

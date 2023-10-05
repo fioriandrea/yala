@@ -1,0 +1,29 @@
+program main
+begin main
+
+if true then
+        i: string;
+        i = "before";
+
+        # New variable is in inner scope.
+        for i = 0 to 0 do
+                writeln(i); # expect: 0
+        end;
+end;
+
+if true then
+        # New variable shadows outer variable.
+        for i = 0 to -1 do
+        end;
+
+        i: string;
+        i = "after";
+        writeln(i); # expect: after
+
+        # Can reuse an existing variable.
+        for i = 0 to 0 do
+                writeln(i); # expect: 0
+        end;
+end;
+
+end main.

@@ -1,0 +1,8 @@
+program main
+begin main
+
+writeln(!true);     # expect: false
+writeln(!false);    # expect: true
+writeln(!!true);    # expect: true
+
+end main.

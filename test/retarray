@@ -1,0 +1,20 @@
+program main
+
+function complex(r, i: integer): vector [2] of integer
+begin complex
+        [r, i]
+end complex;
+
+function scale(c: vector [2] of integer, s: integer): vector [2] of integer
+begin scale
+        [c[0] * s, c[1] * s]
+end scale;
+
+begin main
+
+c: vector [2] of integer;
+c = complex(1, 2);
+writeln(scale(c, 2));
+writeln(c);
+
+end main.

@@ -1,0 +1,12 @@
+program main
+begin main
+
+if true then
+  a: string;
+  a = "outer";
+  if true then
+    writeln(a); # expect: outer
+  end;
+end;
+
+end main.

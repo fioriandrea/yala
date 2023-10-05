@@ -1,0 +1,7 @@
+program main
+begin main
+
+writeln(true or (1 / 0) < 10);
+writeln(false and (1 / 0) > 5);
+
+end main.

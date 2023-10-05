@@ -1,0 +1,8 @@
+program main
+begin main
+
+writeln(4 - 3); # expect: 1
+writeln(1 - 1); # expect: 0
+writeln(1 - 2); # expect: -1
+
+end main.

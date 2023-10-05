@@ -1,0 +1,9 @@
+program main
+begin main
+
+writeln(123);     # expect: 123
+writeln(987654);  # expect: 987654
+writeln(0);       # expect: 0
+writeln(-0);      # expect: 0
+
+end main.

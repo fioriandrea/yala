@@ -1,0 +1,8 @@
+program main
+begin main
+
+# Evaluate the 'else' expression if the condition is false.
+if (true) then writeln("good"); else  "bad"; end; # expect: good
+if (false) then writeln("bad"); else writeln("good"); end; # expect: good
+
+end main.

@@ -1,0 +1,8 @@
+program main
+begin main
+
+i: vector [2] of vector [2] of integer;
+i[1] = [1, 2];
+writeln(i);
+
+end main.

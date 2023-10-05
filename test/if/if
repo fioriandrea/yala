@@ -1,0 +1,8 @@
+program main
+begin main
+
+# Evaluate the 'then' expression if the condition is true.
+if (true) then writeln("good"); end; # expect: good
+if (false) then writeln("bad"); end;
+
+end main.

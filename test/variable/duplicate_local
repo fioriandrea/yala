@@ -1,0 +1,11 @@
+program main
+begin main
+
+for i = 0 to 1 do
+        a: string;
+        a = "value";
+        a: string;
+        a = "other"; # Error at 'a': Already a variable with this name in this scope.
+end;
+
+end main.

@@ -1,0 +1,6 @@
+*.o
+yala
+.vscode
+automation
+vgcore.*
+tags

@@ -1,0 +1,8 @@
+program main
+begin main
+
+writeln(8 / 2);         # expect: 4
+writeln(12 / 12);  # expect: 1
+writeln(12 / 13);  # expect: 0
+
+end main.

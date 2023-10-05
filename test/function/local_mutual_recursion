@@ -1,0 +1,28 @@
+program main
+
+function is_even(n: integer): boolean
+begin is_even
+        if n == 0 then
+                true
+        else
+                is_odd(n - 1)
+        end
+end is_even;
+
+function is_odd(n: integer): boolean
+begin is_odd
+        if n == 0 then
+                false
+        else
+                is_even(n - 1)
+        end
+end is_odd;
+
+begin main
+
+writeln(is_even(20));
+writeln(is_even(11));
+writeln(is_odd(20));
+writeln(is_odd(11));
+
+end main.

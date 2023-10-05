@@ -1,0 +1,11 @@
+program main
+function fib(n: integer): integer
+begin fib
+        if n < 2 then n else fib(n - 1) + fib(n - 2) end
+end fib;
+begin main
+
+
+writeln(fib(8)); # expect: 21
+
+end main.

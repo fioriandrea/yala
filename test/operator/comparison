@@ -1,0 +1,30 @@
+program main
+begin main
+
+writeln(1 < 2);    # expect: true
+writeln(2 < 2);    # expect: false
+writeln(2 < 1);    # expect: false
+
+writeln(1 <= 2);    # expect: true
+writeln(2 <= 2);    # expect: true
+writeln(2 <= 1);    # expect: false
+
+writeln(1 > 2);    # expect: false
+writeln(2 > 2);    # expect: false
+writeln(2 > 1);    # expect: true
+
+writeln(1 >= 2);    # expect: false
+writeln(2 >= 2);    # expect: true
+writeln(2 >= 1);    # expect: true
+
+# Zero and negative zero compare the same.
+writeln(0 < -0); # expect: false
+writeln(-0 < 0); # expect: false
+writeln(0 > -0); # expect: false
+writeln(-0 > 0); # expect: false
+writeln(0 <= -0); # expect: true
+writeln(-0 <= 0); # expect: true
+writeln(0 >= -0); # expect: true
+writeln(-0 >= 0); # expect: true
+
+end main.

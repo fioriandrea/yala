@@ -1,0 +1,13 @@
+program main
+
+function fib(n: integer): integer
+begin fib
+  if (n < 2) then n
+  else fib(n - 2) + fib(n - 1) end
+end fib;
+
+begin main
+
+writeln(fib(35) == 9227465);
+
+end main.

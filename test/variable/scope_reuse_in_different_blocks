@@ -1,0 +1,16 @@
+program main
+begin main
+
+if true then
+        a: string;
+        a = "first";
+        writeln(a); # expect: first
+end;
+
+if true then
+        a: string;
+        a = "second";
+        writeln(a); # expect: second
+end;
+
+end main.

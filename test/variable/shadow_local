@@ -1,0 +1,15 @@
+program main
+begin main
+
+if true then
+  a: string;
+  a = "local";
+  if true then
+    a: string;
+    a = "shadow";
+    writeln(a); # expect: shadow
+  end;
+  writeln(a); # expect: local
+end;
+
+end main.

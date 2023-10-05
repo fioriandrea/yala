@@ -1,0 +1,6 @@
+program main
+begin main
+
+1 > "1"; # expect semantic error: Operands must be numbers.
+
+end main.

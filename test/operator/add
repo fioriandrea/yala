@@ -1,0 +1,7 @@
+program main
+begin main
+
+writeln(123 + 456); # expect: 579
+writeln("str", "ing"); # expect: string
+
+end main.

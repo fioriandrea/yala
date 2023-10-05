@@ -1,0 +1,9 @@
+program main
+procedure foo(a, b c, d, e, f: integer)
+begin foo
+
+end foo;
+begin main
+
+
+end main.

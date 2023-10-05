@@ -1,0 +1,8 @@
+program main
+begin main
+
+# A dangling else binds to the right-most if.
+if true then if false then writeln("bad"); else writeln("good"); end; end; # expect: good
+if true then if false then writeln("bad"); end; else writeln("good"); end; # expect nothing
+
+end main.

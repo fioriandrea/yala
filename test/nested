@@ -1,0 +1,26 @@
+program main
+
+procedure call_factorial(inout n: integer)
+
+function factorial(n: integer): integer
+begin factorial
+    if n <= 0 then 1 else n * factorial(n - 1) end
+end factorial;
+
+begin call_factorial
+    res: integer;
+    res = factorial(n);
+    writeln("factorial(", n, ") = ", res);
+    n = res;
+end call_factorial;
+
+begin main
+
+x: integer;
+x = 10;
+writeln("calling write_factorial");
+call_factorial(x);
+writeln("out of write_factorial");
+writeln(x);
+
+end main.

@@ -1,0 +1,13 @@
+program main
+begin main
+
+writeln(true != true); # expect: false
+writeln(true != false); # expect: true
+
+writeln(1 != 1); # expect: false
+writeln(1 != 2); # expect: true
+
+writeln("str" != "str"); # expect: false
+writeln("str" != "ing"); # expect: true
+
+end main.

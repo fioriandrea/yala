@@ -1,0 +1,10 @@
+program main
+procedure foo()
+begin foo
+
+end foo;
+begin main
+
+writeln(foo);
+
+end main.

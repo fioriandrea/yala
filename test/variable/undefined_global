@@ -1,0 +1,6 @@
+program main
+begin main
+
+writeln(notDefined);  # expect semantic error: Undefined variable 'notDefined'.
+
+end main.
