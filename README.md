@@ -9,9 +9,13 @@ To create this project, I relied on insights and techniques from the book "Craft
 # Build
 
 Once you have obtained the source code, you just need to enter the following command:
-```make```
+```
+make
+```
 If there are any issues due to previous compilations, you can use the command:
-```make cleanbuild```
+```
+make cleanbuild
+```
 This will produce an executable file named "yala."
 
 # Command Line Options
