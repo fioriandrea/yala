@@ -106,8 +106,7 @@ parse_cli_arguments(int argc, char **argv)
                 parse_option(option, &argc, &argv);
         }
         if (argc == 0) {
-                progerror("must supply a file\n");
-                exit(1);
+                return;
         }
         input_path = *argv++;
         argc--;
@@ -146,6 +145,10 @@ progvarperror(char *fmt, ...)
 static char *
 load_program(char *fname, int *proglen)
 {
+        if (input_path == NULL) {
+                progerror("must supply a file\n");
+                exit(1);
+        }
         FILE *fp;
         size_t fsize;
         char *programtext;
@@ -263,16 +266,17 @@ main(int argc, char **argv)
 
         parse_cli_arguments(argc, argv);
 
-        programtext = load_program(input_path, &proglen);
-
         switch (run_mode) {
                 case RUN_RUN:
+                        programtext = load_program(input_path, &proglen);
                         run_run(programtext, proglen);
                         break;
                 case RUN_COMPILE:
+                        programtext = load_program(input_path, &proglen);
                         run_compile(programtext, proglen);
                         break;
                 case RUN_EXECUTE:
+                        programtext = load_program(input_path, &proglen);
                         run_execute(programtext, proglen);
                         break;
                 case RUN_HELP:
