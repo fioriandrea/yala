@@ -41,6 +41,8 @@ The code has been divided into several modules:
 
 - `serialization`: This module handles the serialization and deserialization of the bytecode.
 
+- `test`: This directory contains some  test programs written in the yala language (some correct and some not). The test have been inspired by [wren's tests](https://github.com/wren-lang/wren/tree/main/test)
+
 # Example Programs
 
 ## Factorial
